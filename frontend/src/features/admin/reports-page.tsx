@@ -16,7 +16,7 @@ const TYPES = [
   { id: 'users', label: 'Users', desc: 'Every registered account with role, status and join date.' },
   { id: 'events', label: 'Events', desc: 'Events with promoter, status, enrolments and contracts.' },
   { id: 'contracts', label: 'Contracts', desc: 'Contracts with parties, amounts and status.' },
-  { id: 'payments', label: 'Payments', desc: 'Licence-fee payments with provider status.' },
+  { id: 'payments', label: 'Licence fees', desc: 'Mobile Money transfers with payer, transaction ID and confirmation state.' },
   { id: 'verifications', label: 'Verifications', desc: 'History of licence approvals and rejections.' },
   { id: 'moderation', label: 'Moderation', desc: 'Portfolio items that were flagged or removed.' },
 ] as const;

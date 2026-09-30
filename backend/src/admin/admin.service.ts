@@ -6,6 +6,8 @@ import { AuthUser } from '../common/decorators';
 import { toCsv } from '../common/utils/csv';
 import { pageArgs, toPage } from '../common/utils/pagination';
 import { NotificationsService } from '../notifications/notifications.service';
+import { ConfirmPaymentDto, RecordFeePaymentDto, RefundPaymentDto, RejectPaymentDto, UpdateLicenceFeeDto } from '../payments/dto/payments.dto';
+import { LicenceFeeService } from '../payments/licence-fee.service';
 import { PaymentsService } from '../payments/payments.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ListAdminEventsQuery, ListAdminPaymentsQuery, ListPortfoliosQuery, ListPromotersQuery, ListUsersQuery, ModeratePortfolioDto, UpdateUserStatusDto, VerifyPromoterDto } from './dto/admin.dto';
@@ -21,6 +23,7 @@ export class AdminService {
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
     private readonly payments: PaymentsService,
+    private readonly licenceFeeSettings: LicenceFeeService,
   ) {}
 
   // ─────────────── overview ───────────────
@@ -53,6 +56,7 @@ export class AdminService {
       contracts: { total: Object.values(contracts).reduce((a: number, b) => a + (b as number), 0), active: contracts.ACTIVE ?? 0, byStatus: contracts },
       payments: {
         revenue: revenue._sum.amount ?? 0,
+        awaitingConfirmation: await this.prisma.payment.count({ where: { status: PaymentStatus.PENDING, submittedAt: { not: null } } }),
         byStatus: Object.fromEntries(payGroups.map((g) => [g.status, { count: g._count._all, amount: g._sum.amount ?? 0 }])),
       },
       portfolios: { flagged, removed },
@@ -289,16 +293,38 @@ export class AdminService {
   }
 
   async paymentsList(q: ListAdminPaymentsQuery) {
-    const where: Prisma.PaymentWhereInput = q.status ? { status: q.status } : {};
-    const [items, total] = await Promise.all([
-      this.prisma.payment.findMany({ where, orderBy: { createdAt: 'desc' }, ...pageArgs(q), include: { promoter: { select: { id: true, agencyName: true } } } }),
-      this.prisma.payment.count({ where }),
-    ]);
-    return toPage(items, total, q);
+    return this.payments.adminList(q);
   }
 
-  refund(id: string) {
-    return this.payments.refund(id);
+  /** Licence fees: the settings an administrator owns plus the state of the collection. */
+  async licenceFee() {
+    const [settings, overview, promoters] = await Promise.all([
+      this.licenceFeeSettings.adminView(),
+      this.payments.feeOverview(),
+      this.payments.promotersOwingFee(),
+    ]);
+    return { ...settings, overview, promoters };
+  }
+
+  async updateLicenceFee(dto: UpdateLicenceFeeDto) {
+    await this.licenceFeeSettings.update(dto);
+    return this.licenceFee();
+  }
+
+  confirmPayment(admin: AuthUser, id: string, dto: ConfirmPaymentDto) {
+    return this.payments.confirm(admin, id, dto);
+  }
+
+  rejectPayment(admin: AuthUser, id: string, dto: RejectPaymentDto) {
+    return this.payments.reject(admin, id, dto);
+  }
+
+  refundPayment(admin: AuthUser, id: string, dto: RefundPaymentDto) {
+    return this.payments.refund(admin, id, dto.note);
+  }
+
+  recordFeePayment(admin: AuthUser, dto: RecordFeePaymentDto) {
+    return this.payments.recordFeePayment(admin, dto);
   }
 
   // ─────────────── reports ───────────────
@@ -331,7 +357,7 @@ export class AdminService {
       case 'payments': {
         title = 'Payments report';
         const data = await this.prisma.payment.findMany({ where: range(), orderBy: { createdAt: 'desc' }, include: { promoter: true } });
-        rows = data.map((p) => ({ promoter: p.promoter.agencyName, purpose: p.purpose, amount: p.amount, currency: p.currency, status: p.status, provider: p.provider, reference: p.providerRef ?? '', created: p.createdAt }));
+        rows = data.map((p) => ({ promoter: p.promoter.agencyName, purpose: p.purpose, amount: p.amount, currency: p.currency, status: p.status, method: p.method ?? '', transaction_ref: p.transactionRef ?? '', payer: p.payerName ?? '', payer_phone: p.payerPhone ?? '', platform_reference: p.providerRef ?? '', submitted: p.submittedAt, confirmed: p.confirmedAt, created: p.createdAt }));
         break;
       }
       case 'verifications': {

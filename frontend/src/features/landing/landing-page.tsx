@@ -253,7 +253,7 @@ function Live() {
               <h2 className="mt-2 text-3xl font-extrabold sm:text-4xl">Verification is part of the product, not an afterthought.</h2>
               <ul className="mt-6 space-y-4 text-slate-300">
                 {[
-                  ['Licence review', 'Promoters submit their licence and pay a one-off verification fee. An admin reviews it before they can publish events or issue contracts.'],
+                  ['Licence review', 'Promoters submit their licence and pay the one-off licence fee with MTN Mobile Money or Orange Money. An administrator confirms the transfer and reviews the licence before they can publish events or issue contracts.'],
                   ['Reviews from completed work', 'Only a promoter with a completed contract can rate a talent — ratings cannot be bought or faked.'],
                   ['You stay in control', 'Talents accept or decline every contract. Admins moderate portfolios and can suspend accounts.'],
                 ].map(([t, b]) => (
@@ -277,7 +277,7 @@ function FinalCta() {
     <section className="bg-white py-20">
       <div className="mx-auto max-w-5xl px-4 text-center sm:px-6">
         <h2 className="text-3xl font-extrabold text-slate-900 sm:text-5xl">Your next booking is one profile away.</h2>
-        <p className="mx-auto mt-4 max-w-xl text-lg text-slate-600">Create a free account in a minute. Talents pay nothing; promoters pay a single licence verification fee.</p>
+        <p className="mx-auto mt-4 max-w-xl text-lg text-slate-600">Create a free account in a minute. Talents pay nothing; promoters pay a single licence fee with MTN Mobile Money or Orange Money.</p>
         <div className="mt-8 flex flex-wrap justify-center gap-3">
           <ButtonLink href="/register" size="lg">Get Started</ButtonLink>
           <ButtonLink href="/login" size="lg" variant="outline">Login</ButtonLink>

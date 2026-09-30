@@ -4,7 +4,7 @@ This folder holds the Postman test suite for the REST API and screenshots of eve
 
 | File / folder | What it is |
 | --- | --- |
-| [`TalentConnect.postman_collection.json`](TalentConnect.postman_collection.json) | Postman collection (v2.1): **15 folders, 113 requests, 426 test assertions** |
+| [`TalentConnect.postman_collection.json`](TalentConnect.postman_collection.json) | Postman collection (v2.1): **15 folders, 130 requests** |
 | [`TalentConnect.local.postman_environment.json`](TalentConnect.local.postman_environment.json) | Environment: `baseUrl` and the seeded demo logins |
 | [`screenshots/`](screenshots/README.md) | One screenshot per request plus Collection Runner summaries. **Start with [`screenshots/README.md`](screenshots/README.md)** |
 | `scripts/build-collection.js` | Builds the collection and environment JSON files |
@@ -15,7 +15,7 @@ This folder holds the Postman test suite for the REST API and screenshots of eve
 | # | Folder | Endpoints tested |
 | --- | --- | --- |
 | 01 | Public | `/public/meta`, `/public/landing` |
-| 02 | Auth | register talent / promoter (201, 409 duplicate, 422 validation), login for all 3 roles, wrong password (401), `/auth/me` with and without a token |
+| 02 | Auth | register talent / promoter (201, 409 duplicate, 422 validation), a second promoter for the counter-payment scenario, login for all 3 roles, wrong password (401), `/auth/me` with and without a token |
 | 03 | Users | update account, avatar upload (multipart), change password, old token revoked (401), wrong current password (401), user summary |
 | 04 | Talents | profile, update, dashboard, specializations, search, get by id, role check (403) |
 | 05 | Promoters | profile, update, dashboard, licence submission with PDF (multipart), expired licence (400) |
@@ -25,9 +25,9 @@ This folder holds the Postman test suite for the REST API and screenshots of eve
 | 09 | Ratings | rate, rate twice (409), my ratings, a talent's ratings |
 | 10 | Messages | send, empty message (422), conversations, unread count, thread, mark read |
 | 11 | Notifications | list, unread count, mark one read, mark all read |
-| 12 | Payments | config, checkout, declined card, invalid card (422), successful card, history, get by id |
-| 13 | AI assistant | status, chat, history, clear history |
-| 14 | Admin | stats, monitoring, users, verification queue, promoter details, reject without a reason (400), approve, portfolio flag/restore, events, payments, refund, JSON report, CSV export, suspend user, suspended token revoked (401), non-admin (403) |
+| 12 | Payments | Mobile Money licence fee: config (FCFA, `*126#` / `#150#`), checkout, declare an MTN MoMo transfer, foreign wallet number (422), duplicate transaction ID (409), admin reject without a reason (422), reject, confirm a rejected transfer (409), resubmit with a corrected ID, admin confirm, fee marked paid, history, get by id, checkout while a transfer awaits (409) |
+| 13 | AI assistant | status (names the adapter, never the key), chat, history, clear history — live with Groq when `GROQ_API_KEY` is set, offline otherwise |
+| 14 | Admin | stats, monitoring, licence-fee settings (get, update, amount outside the limits 422, both services off 400), transfers awaiting confirmation, users, verification queue, promoter details, reject without a reason (400), approve, portfolio flag/restore, events, payments, refund, counter payment recorded (201) and recorded twice (409), JSON report, CSV export, suspend user, suspended token revoked (401), non-admin (403) |
 | 15 | Cleanup | delete draft event, delete portfolio item, logout |
 
 Each request checks the status code, the response time (under 2 s), the content type, and at least one thing in the response body. Error responses also check the standard error format and that no stack trace leaks out. Requests save tokens and ids (`talentToken`, `eventId`, `contractId`, `paymentId`, …) to collection variables for the requests that follow them.

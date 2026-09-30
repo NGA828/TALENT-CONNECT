@@ -75,12 +75,34 @@ cd frontend && npm run build && npm run start
 | `PORT`, `NODE_ENV`, `CORS_ORIGINS` | Server settings. CORS only matters when something other than the Next proxy calls the API. |
 | `DATABASE_URL` | SQLite file, e.g. `file:./prisma/dev.db` (resolved relative to `backend/`). |
 | `JWT_SECRET`, `JWT_EXPIRES_IN` | Token signing. Use a long random secret. |
-| `PAYMENT_PROVIDER`, `PAYMENT_CURRENCY`, `LICENCE_FEE_AMOUNT`, `PAYMENT_API_KEY/SECRET` | Payment module. Only `sandbox` ships; the key slots are reserved for a live adapter and stay server-side. |
-| `AI_PROVIDER`, `AI_BASE_URL`, `AI_API_KEY`, `AI_MODEL` | AI module. Leave `AI_API_KEY` empty to use the offline assistant. |
+| `PAYMENT_PROVIDER`, `PAYMENT_CURRENCY`, `LICENCE_FEE_AMOUNT`, `PAYMENT_API_KEY/SECRET` | Licence-fee module. `manual` (default) means promoters pay by MTN MoMo / Orange Money and an administrator confirms the transfer; `LICENCE_FEE_AMOUNT` is only the default until an administrator sets the fee. The key slots are reserved for a live aggregator and stay server-side. |
+| `GROQ_API_KEY` (xAI: `XAI_API_KEY`, generic: `AI_API_KEY`), `AI_PROVIDER`, `GROQ_BASE_URL` / `AI_BASE_URL`, `GROQ_MODEL` / `AI_MODEL`, `AI_MAX_TOKENS`, `AI_TIMEOUT_MS` | AI assistant. Put a Groq key from [console.groq.com](https://console.groq.com) in `GROQ_API_KEY` and the assistant is live — `npm run ai:check` in `backend/` verifies it. With no key it falls back to the offline template writer. |
 | `UPLOAD_DIR` | Local upload folder for the dev storage adapter. |
 | `RATE_LIMIT`, `AUTH_RATE_LIMIT`, `AI_RATE_LIMIT` | Requests per minute per client. |
 
 `frontend/.env.example` has a single server-side variable, `BACKEND_URL`. There are no `NEXT_PUBLIC_*` secrets; API keys never reach the browser.
+
+### Switching on the AI assistant (Groq)
+
+The assistant runs on **Groq** — open-weight models on LPUs, fast and cheap — through Groq's OpenAI-compatible endpoint `https://api.groq.com/openai/v1`.
+
+1. Create an API key at [console.groq.com](https://console.groq.com) → *API Keys* (starts with `gsk_`).
+2. Put it in `backend/.env`: `GROQ_API_KEY=gsk_…` (that file is git-ignored — never commit a key).
+3. Restart the backend. The boot log prints `AI assistant: live via Groq (model llama-3.3-70b-versatile)` and the assistant page shows the live provider instead of the offline banner.
+4. `cd backend && npm run ai:check` makes one test call and prints the reply, so a bad key or an unavailable model is obvious immediately.
+
+`GROQ_MODEL` defaults to `llama-3.3-70b-versatile`; `openai/gpt-oss-120b`, `openai/gpt-oss-20b` and `llama-3.1-8b-instant` are other models on the same key. With no key at all the assistant keeps working through the built-in offline template writer and says so in the UI.
+
+**Other vendors.** `AI_PROVIDER` picks the adapter and each one has its own key:
+
+| `AI_PROVIDER` | Vendor | Key | Endpoint / model defaults |
+| --- | --- | --- | --- |
+| `groq` *(default)* | [Groq](https://console.groq.com) | `GROQ_API_KEY` | `https://api.groq.com/openai/v1` · `llama-3.3-70b-versatile` |
+| `grok` | [xAI](https://console.x.ai) — note the spelling | `XAI_API_KEY` | `https://api.x.ai/v1` · `grok-4.7` |
+| `openai-compatible` | OpenAI, OpenRouter, a proxy … | `AI_API_KEY` | `AI_BASE_URL` + `AI_MODEL` (defaults to OpenRouter) |
+| `offline` | — | — | built-in template writer |
+
+Keys are never shared between vendors: a `GROQ_API_KEY` does not activate the xAI adapter and vice versa. `AI_BASE_URL` / `AI_MODEL` still act as generic fallbacks if you prefer one set of variables.
 
 ---
 
@@ -90,9 +112,9 @@ cd frontend && npm run build && npm run start
 
 **Talent** — dashboard; profile with photo, skills and completion checklist; portfolio CRUD with image / video / audio / PDF uploads, publish-hide toggle and moderation notices; event browsing with filters, enrol / withdraw; contracts (read the terms, accept or decline while pending); ratings; messages; notifications; AI writing assistant.
 
-**Promoter** — dashboard; agency profile; licence submission with document upload; licence-fee payment (sandbox); event create / edit / publish / unpublish / start / complete / cancel with up to 8 event photos (choose the cover, remove photos); photos appear on event cards, the event gallery, dashboards and the landing page; talent search with portfolio previews; issue, amend, cancel and complete contracts, attach a signed PDF, rate talent after completion; messages; notifications.
+**Promoter** — dashboard; agency profile; licence submission with document upload; licence fee paid with MTN Mobile Money (`*126#`) or Orange Money (`#150#`) — the promoter declares the transfer (wallet number, transaction ID, optional receipt) and an administrator confirms it; event create / edit / publish / unpublish / start / complete / cancel with up to 8 event photos (choose the cover, remove photos); photos appear on event cards, the event gallery, dashboards and the landing page; talent search with portfolio previews; issue, amend, cancel and complete contracts, attach a signed PDF, rate talent after completion; messages; notifications.
 
-**Admin** — overview with a verification queue; user list with suspend / deactivate / reactivate; promoter verification (approve, or reject with a reason); portfolio moderation (flag / remove / restore); reports (users, events, contracts, payments, verifications, moderation) with CSV export; monitoring (system health, 14-day activity, pipelines).
+**Admin** — overview with a verification queue; **licence-fee management** (`/admin/licence-fees`: set the amount in FCFA, the MTN MoMo / Orange Money merchant wallets and the instructions promoters see, confirm or reject declared transfers, refund a confirmed fee, or record a payment received at the counter); user list with suspend / deactivate / reactivate; promoter verification (approve, or reject with a reason); portfolio moderation (flag / remove / restore); reports (users, events, contracts, licence fees, verifications, moderation) with CSV export; monitoring (system health, 14-day activity, pipelines).
 
 The three dashboards are intentionally organised differently: talent = personal "what needs me" page, promoter = operations console with a pipeline and tables, admin = queue-first dense tables.
 
@@ -111,15 +133,16 @@ common/{decorators,guards,filters,utils}   prisma/
 - **Controllers are thin**; business rules live in services; all data access goes through `PrismaService`.
 - **Security pipeline:** global `JwtAuthGuard` (routes are private unless marked `@Public()`), `RolesGuard` with `@Roles()`, `@CurrentUser()` decorator, `ValidationPipe` with DTOs (`whitelist`, `forbidNonWhitelisted`, 422 with a per-field `errors` map), a `@Sanitize()` transform that strips markup from free-text input, `helmet`, and throttling (stricter on auth and AI). Tokens carry a `tokenVersion`, so suspending a user or changing a password invalidates existing sessions.
 - **Ownership checks** are enforced in the services: talents can only edit their own profile / portfolio / enrolments; promoters only their own events, contracts and payments; conversation and contract access is limited to participants. Admins get elevated access only through `/admin/*` and read access to specific resources.
-- **Payments** (`payments/`): `PaymentsModule`, controller, service, DTOs and a `PaymentProvider` abstraction. The bundled `SandboxPaymentProvider` is explicit, not a silent mock: it validates card numbers (Luhn, expiry), really declines test cards, records `FAILED` payments with a reason, stores only brand and last four digits, and the UI shows a "Sandbox mode" banner everywhere a payment is taken. Add a live provider by implementing `PaymentProvider` and switching `PAYMENT_PROVIDER`.
-  Sandbox cards: `4242 4242 4242 4242` and `5555 5555 5555 4444` succeed; `4000 0000 0000 0002` is declined; `4000 0000 0000 9995` has insufficient funds.
-- **AI** (`ai/`): `AIController`, `AIService` and an `AiProvider` abstraction with an OpenAI-compatible adapter (uses `AI_BASE_URL` / `AI_API_KEY` / `AI_MODEL`) and an offline template adapter used automatically when no key is set. The UI tells the user which mode is active. The key never leaves the server.
+- **Licence fees** (`payments/`): `PaymentsModule`, controller, service, DTOs, `LicenceFeeService` (the admin-managed settings) and a `MobileMoneyProvider` abstraction. Cameroon pays with Mobile Money, so the bundled `ManualMobileMoneyProvider` (`PAYMENT_PROVIDER=manual`, `automatic: false`) is the honest default: the promoter transfers the fee with MTN MoMo (`*126#`) or Orange Money (`#150#`) to the merchant wallet the admin publishes, declares the transaction ID (plus an optional receipt screenshot) and an administrator — who holds the wallet — confirms or rejects it. Only the Cameroonian numbering plan is accepted for wallet numbers, and a transaction ID cannot be declared twice. Implement `MobileMoneyProvider` (Campay, MeSomb, Notch Pay, MTN MoMo API, Orange Money API, Flutterwave …) to settle transfers without an administrator touching them; the interface, the factory in `payments.module.ts` and the UI wording already support it.
+  Administrators own the fee end to end in `Admin → Licence fees`: the amount in whole FCFA, the two merchant numbers, which networks are open, the instructions, the confirmation queue, refunds (sent back from the merchant wallet) and counter payments recorded on a promoter's behalf.
+- **Settings** (`Setting` table): a small key/value store (prefix `licenceFee.`) so the fee can change without a redeploy; `LICENCE_FEE_AMOUNT` and `PAYMENT_CURRENCY` remain the fallbacks.
+- **AI** (`ai/`): `AiController`, `AiService` and an `AiProvider` abstraction with four adapters: **Groq** (`api.groq.com/openai/v1`) — the default; **Grok** (xAI, `api.x.ai/v1`); a generic OpenAI-compatible adapter for OpenAI / OpenRouter / a proxy; and an offline template writer used automatically when no key is configured. `AiModule` resolves `AI_PROVIDER` + the matching key variable (see the table above), logs the choice at boot, and each vendor keeps its own key and endpoint defaults so one provider's key can never activate another. `/ai/status` reports the live vendor label and model, the UI shows exactly who is answering (or says plainly that it is offline), every answer stays grounded in the signed-in talent's profile (plus the selected event), the key never leaves the server, and provider failures surface as clear messages (bad key, rate limit, unknown model, timeout). Run `npm run ai:check` in `backend/` after adding a key to test it in one call.
 - **Storage** (`storage/`): `StorageService` validates MIME type and size per media type (image 10 MB, video 50 MB, audio 20 MB, PDF 10 MB) and delegates to a `StorageProvider`. `LocalStorageProvider` writes to `UPLOAD_DIR`; an S3 / Cloudinary adapter only needs to implement the same interface.
-- **Status enums:** Contract `PENDING / ACTIVE / COMPLETED / CANCELLED / REJECTED`; Licence `NOT_SUBMITTED / PENDING / VERIFIED / REJECTED`; Payment `PENDING / SUCCESS / FAILED / REFUNDED`; Event `DRAFT / PUBLISHED / ONGOING / COMPLETED / CANCELLED`.
+- **Status enums:** Contract `PENDING / ACTIVE / COMPLETED / CANCELLED / REJECTED`; Licence `NOT_SUBMITTED / PENDING / VERIFIED / REJECTED`; Payment `PENDING / SUCCESS / FAILED / REFUNDED` (a `PENDING` payment with `submittedAt` is waiting for administrator confirmation) with method `MTN_MOMO / ORANGE_MONEY / OFFLINE`; Event `DRAFT / PUBLISHED / ONGOING / COMPLETED / CANCELLED`.
 
 ### Database (`backend/prisma/schema.prisma`)
 
-Entities: `User`, `Talent`, `Promoter`, `Portfolio`, `Event`, `EventImage`, `TalentEvent`, `Contract`, `Payment`, `Message`, `Notification`, `Rating`, plus two supporting tables — `LicenceReview` (audit trail of admin decisions) and `AiMessage` (assistant history).
+Entities: `User`, `Talent`, `Promoter`, `Portfolio`, `Event`, `EventImage`, `TalentEvent`, `Contract`, `Payment` (Mobile Money details, no card data), `Message`, `Notification`, `Rating`, plus supporting tables — `LicenceReview` (audit trail of admin decisions), `Setting` (admin-managed platform settings such as the licence fee and merchant wallets) and `AiMessage` (assistant history).
 
 ### Frontend (`frontend/src`)
 
@@ -138,19 +161,28 @@ lib/           api client, useApi, toast, hooks, formatters, shared types
 
 ---
 
+## Documentation
+
+| Document | For | What it covers |
+| --- | --- | --- |
+| [`docs/Talent-Connect-User-Guide.pdf`](docs/Talent-Connect-User-Guide.pdf) | Everyone using the platform | Printable guide: the three roles, the Mobile Money licence fee step by step (`*126#` / `#150#`), the administrator fee console, the AI assistant, troubleshooting, demo accounts. Rebuild with `python3 docs/user-guide/build-user-guide.py` after editing `docs/user-guide/guide_content.py`. |
+| [`API_DOCUMENTATION.md`](API_DOCUMENTATION.md) | Developers integrating with the API | Every endpoint, payload, status code and enum. |
+| [`postman/README.md`](postman/README.md) | Testers | How to run the 130-request collection with Postman or newman. |
+| [`DESIGN_RESEARCH.md`](DESIGN_RESEARCH.md) | Designers | The research behind each screen and the decisions taken. |
+
 ## Testing
 
 ```bash
-cd backend && npm test          # 58 API tests against a throw-away SQLite database
+cd backend && npm test          # 73 API tests against a throw-away SQLite database
 cd backend && npm run lint && npm run build
 cd frontend && npm run lint && npm run typecheck && npm run build
 ```
 
-**Postman / newman:** [`postman/`](postman/README.md) contains a 113-request Postman collection (426 assertions) covering every module, and [screenshots of each request](postman/screenshots/README.md). Run it with `cd postman && npm install && npm test`.
+**Postman / newman:** [`postman/`](postman/README.md) contains a 130-request Postman collection covering every module, and [screenshots of each request](postman/screenshots/README.md). Run it with `cd postman && npm install && npm test`.
 
-The backend suite (`node:test` + `expect`, real Nest app, real SQLite) covers both valid and invalid paths: registration validation and duplicate emails, login failures, suspended users, role and ownership violations (403), unknown resources (404), state conflicts (409), validation errors (422), upload type and size limits, event and contract state machines, licence → payment → admin verification, declined cards, messaging, notifications, AI, admin operations and the error envelope (no stack traces).
+The backend suite (`node:test` + `expect`, real Nest app, real SQLite) covers both valid and invalid paths: registration validation and duplicate emails, login failures, suspended users, role and ownership violations (403), unknown resources (404), state conflicts (409), validation errors (422), upload type and size limits, event and contract state machines, the Mobile Money licence fee (checkout → transfer declared → administrator confirm/reject → licence review), admin fee settings and counter payments, messaging, notifications, AI, admin operations and the error envelope (no stack traces).
 
-The UI flows were additionally exercised end-to-end in a headless browser (invalid login, registration validation and duplicates, profile save, AI chat, licence submission, declined then successful sandbox payment, admin approval and reject-needs-reason, event create and publish, enrol, issue and accept a contract, notifications, CSV report generation) and checked for horizontal overflow at 390 px on every page.
+The UI flows were additionally exercised end-to-end in a headless browser (invalid login, registration validation and duplicates, profile save, AI chat, licence submission, the Mobile Money licence fee — checkout, transfer declared, administrator confirm/reject with a corrected transaction ID — admin approval and reject-needs-reason, event create and publish, enrol, issue and accept a contract, notifications, CSV report generation) and checked for horizontal overflow at 390 px on every page.
 
 ---
 
@@ -170,29 +202,47 @@ If you have normal network access you can remove the adapter and the `engineType
 
 ## Known limitations
 
-- Payments are sandbox-only; there is no live provider adapter yet (the abstraction is in place).
+- Licence-fee transfers are confirmed manually by an administrator; there is no live Mobile Money gateway adapter yet (the `MobileMoneyProvider` abstraction is in place). Refunds are recorded in the app and must be sent back from the MTN MoMo / Orange Money merchant wallet.
 - Uploads use the local disk; swap `LocalStorageProvider` for S3 / Cloudinary before deploying to multiple instances.
 - Email delivery is not implemented; notifications are in-app only.
 - Contract terms are read-only for talent by design; talent can accept or decline a pending contract but cannot negotiate inside the app (use messages).
 
 
-### Cameroon defaults
+### Cameroon licence fee and Mobile Money
 
-Contracts and sandbox licence payments use Central African CFA francs (`XAF`),
-displayed as `FCFA` without decimal places. Contract fees are whole FCFA amounts
-(the API rejects other currencies and decimals), event budgets are entered as a
-minimum/maximum in FCFA (budgets mentioning `$`, `€`, `USD`, `EUR` … are rejected),
-and notification texts read e.g. "30,000 FCFA". Rows created before this change
-keep the currency they were stored with. The illustrative platform
-licence fee is **30,000 FCFA**, configurable through `LICENCE_FEE_AMOUNT`; it is
-not an official government fee. Set `PAYMENT_CURRENCY=XAF` in an existing backend
-`.env` (new installations inherit this from `.env.example`). Payments remain
-sandbox-only; no live mobile-money integration is implied.
+The licence fee is the platform's own charge, paid in Central African CFA francs
+(`XAF`, displayed as `FCFA` with no decimals) and collected the Cameroonian way:
 
-Event display and entry use `Africa/Douala` (UTC+1). Demo profiles and events use
+- **MTN Mobile Money (MoMo)** — USSD `*126#`
+- **Orange Money** — USSD `#150#`
+
+Promoters send the fee from their own wallet to the merchant number the
+administrators publish, then declare the transfer in the app (wallet number,
+transaction ID from the SMS receipt, optional receipt screenshot). Wallet numbers
+must be Cameroonian mobile numbers (`+237 6XX XX XX XX`); prefixes are shown as a
+hint (`67X / 68X / 650–654` for MTN, `69X / 655–659` for Orange) but portability
+means they are not enforced. An **administrator confirms every transfer** against
+the merchant wallet before the licence can be approved — this is the
+`PAYMENT_PROVIDER=manual` adapter, so no live gateway is implied. The fee amount
+is a platform charge, **not an official government fee**, and the demo database
+ships 30,000 FCFA with two clearly-marked demo wallets that must be replaced in
+`Admin → Licence fees`.
+
+Administrators manage the fee end to end: amount (whole FCFA, 1 000 – 5 000 000),
+account holder, both merchant numbers, which networks are open, the instructions,
+the confirmation queue, rejections with a reason, refunds (sent back from the
+merchant wallet) and counter payments recorded on a promoter's behalf. The public
+registration page reads the same settings.
+
+Contracts, event budgets and notifications are also in FCFA (contract fees are
+whole amounts and budgets mentioning `$`, `€`, `USD`, `EUR` … are rejected). Event
+display and entry use `Africa/Douala` (UTC+1). Demo profiles and events use
 Cameroon locations, +237 contact examples, and English/French hosting examples.
-Demo licence numbers and authorities are fictional, not regulatory guidance.
-Login credentials are unchanged.
+Demo licence numbers and authorities are fictional (Ministry of Arts and Culture
+wording is demo data), not regulatory guidance. Login credentials are unchanged.
+To plug in a live aggregator later, implement `MobileMoneyProvider` (Campay,
+MeSomb, Notch Pay, MTN MoMo API, Orange Money API …) and switch
+`PAYMENT_PROVIDER`.
 
 Run `cd backend && npm run prisma:migrate && npm run prisma:generate` to apply
 the new database defaults. Existing contract/payment amounts and currencies are

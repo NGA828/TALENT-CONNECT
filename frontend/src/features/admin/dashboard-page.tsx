@@ -29,22 +29,27 @@ export function AdminDashboardPage() {
       <WorkspaceBand label="Admin console" title="Overview" description="What needs a decision, and how the platform is doing." />
       <QueryState state={state} skeleton={<SkeletonRows rows={6} />}>
         {(s) => {
-          const attention = s.pendingVerification + s.portfolios.flagged;
+          const attention = s.pendingVerification + s.portfolios.flagged + s.payments.awaitingConfirmation;
+          const attentionParts = [
+            s.pendingVerification ? `${s.pendingVerification} licence${s.pendingVerification === 1 ? '' : 's'} to verify` : '',
+            s.payments.awaitingConfirmation ? `${s.payments.awaitingConfirmation} Mobile Money transfer${s.payments.awaitingConfirmation === 1 ? '' : 's'} to confirm` : '',
+            s.portfolios.flagged ? `${s.portfolios.flagged} flagged portfolio item${s.portfolios.flagged === 1 ? '' : 's'}` : '',
+          ].filter(Boolean);
           const metrics: [string, string | number, string][] = [
             ['Users', s.users.total, `${s.users.new7d} new this week`],
             ['Talents', s.users.talents, `${s.users.active7d} active in 7 days`],
             ['Promoters', s.users.promoters, `${s.pendingVerification} awaiting review`],
             ['Events', s.events.total, `${s.events.byStatus.PUBLISHED ?? 0} published`],
             ['Contracts', s.contracts.total, `${s.contracts.active} active`],
-            ['Revenue', formatMoney(s.payments.revenue), `${s.payments.byStatus.SUCCESS?.count ?? 0} successful payments`],
+            ['Licence fees', formatMoney(s.payments.revenue), `${s.payments.byStatus.SUCCESS?.count ?? 0} confirmed transfers`],
           ];
           return (
             <div className="space-y-5">
               <div className={`flex flex-wrap items-center justify-between gap-3 rounded-card border px-5 py-4 ${attention ? 'border-amber-300 bg-amber-50' : 'border-emerald-200 bg-emerald-50'}`}>
                 <p className="flex items-center gap-2 text-sm font-semibold text-slate-900"><AlertTriangle className={`size-4 ${attention ? 'text-amber-600' : 'text-emerald-600'}`} />
-                  {attention ? `${s.pendingVerification} licence${s.pendingVerification === 1 ? '' : 's'} to verify · ${s.portfolios.flagged} flagged portfolio item${s.portfolios.flagged === 1 ? '' : 's'}` : 'Nothing is waiting for review.'}
+                  {attention ? attentionParts.join(' · ') : 'Nothing is waiting for review.'}
                 </p>
-                <div className="flex gap-2">{s.pendingVerification > 0 && <ButtonLink size="sm" href="/admin/promoters">Open verification queue</ButtonLink>}{s.portfolios.flagged > 0 && <ButtonLink size="sm" variant="outline" href="/admin/portfolios">Review flagged items</ButtonLink>}</div>
+                <div className="flex flex-wrap gap-2">{s.pendingVerification > 0 && <ButtonLink size="sm" href="/admin/promoters">Open verification queue</ButtonLink>}{s.payments.awaitingConfirmation > 0 && <ButtonLink size="sm" href="/admin/licence-fees">Confirm licence fees</ButtonLink>}{s.portfolios.flagged > 0 && <ButtonLink size="sm" variant="outline" href="/admin/portfolios">Review flagged items</ButtonLink>}</div>
               </div>
 
               <div className="grid grid-cols-2 gap-px overflow-hidden rounded-card border border-slate-200 bg-slate-200 md:grid-cols-3 xl:grid-cols-6">

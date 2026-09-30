@@ -1,3 +1,7 @@
 node_modules
 .DS_Store
 *.log
+
+# Python tooling (docs/user-guide)
+__pycache__/
+*.pyc

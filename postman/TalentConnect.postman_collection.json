@@ -114,6 +114,18 @@
     {
       "key": "paymentId",
       "value": ""
+    },
+    {
+      "key": "counterPromoterToken",
+      "value": ""
+    },
+    {
+      "key": "counterPromoterId",
+      "value": ""
+    },
+    {
+      "key": "counterPaymentId",
+      "value": ""
     }
   ],
   "item": [
@@ -477,6 +489,71 @@
             "body": {
               "mode": "raw",
               "raw": "{\n  \"firstName\": \"Samuel\",\n  \"lastName\": \"Eto\",\n  \"email\": \"samuel.eto.{{runId}}@example.com\",\n  \"phone\": \"+237 6 77 88 99 00\",\n  \"password\": \"Password123!\",\n  \"confirmPassword\": \"Password123!\",\n  \"agencyName\": \"Wouri Live Agency\",\n  \"licenceNumber\": \"CM-DLA-2026-0457\",\n  \"licenceInfo\": \"Registered events agency in Douala (demo).\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register/promoter",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "register",
+                "promoter"
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "Register promoter – counter payment scenario",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test(\"Response time is below 2000ms\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(2000);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.response.to.be.json;",
+                  "});",
+                  "",
+                  "pm.test(\"Second promoter saved for the counter payment and duplicate-reference checks\", function () {",
+                  "    const b = pm.response.json();",
+                  "    pm.expect(b.user.role).to.eql(\"PROMOTER\");",
+                  "    pm.collectionVariables.set(\"counterPromoterToken\", b.accessToken);",
+                  "    pm.collectionVariables.set(\"counterPromoterId\", b.user.promoter.id);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Awa\",\n  \"lastName\": \"Njoya\",\n  \"email\": \"awa.njoya.{{runId}}@example.com\",\n  \"phone\": \"+237 6 50 41 22 08\",\n  \"password\": \"Password123!\",\n  \"confirmPassword\": \"Password123!\",\n  \"agencyName\": \"Limbe Photo House\",\n  \"licenceNumber\": \"CM-LIM-2026-0912\",\n  \"licenceInfo\": \"Photography studio in Limbe (demo).\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -5237,8 +5314,8 @@
       ]
     },
     {
-      "name": "12 · Payments",
-      "description": "Licence-fee payment through the sandbox provider.",
+      "name": "12 · Payments – licence fee",
+      "description": "The licence fee in FCFA, paid the Cameroonian way: MTN Mobile Money (*126#) or Orange Money (#150#) to the merchant wallet, then declared in the app and confirmed by an administrator.",
       "item": [
         {
           "name": "Get payment config",
@@ -5260,10 +5337,16 @@
                   "    pm.response.to.be.json;",
                   "});",
                   "",
-                  "pm.test(\"Sandbox provider in XAF\", function () {",
+                  "pm.test(\"Mobile Money wallets in FCFA, no automatic gateway\", function () {",
                   "    const b = pm.response.json();",
-                  "    pm.expect(b.sandbox).to.eql(true);",
                   "    pm.expect(b.currency).to.eql(\"XAF\");",
+                  "    pm.expect(b.automatic).to.eql(false);",
+                  "    pm.expect(b.licenceFee).to.be.a(\"number\");",
+                  "    const mtn = b.methods.find((m) => m.value === \"MTN_MOMO\");",
+                  "    const orange = b.methods.find((m) => m.value === \"ORANGE_MONEY\");",
+                  "    pm.expect(mtn.ussd).to.eql(\"*126#\");",
+                  "    pm.expect(orange.ussd).to.eql(\"#150#\");",
+                  "    pm.expect(mtn.number).to.be.a(\"string\").and.not.empty;",
                   "});"
                 ]
               }
@@ -5316,9 +5399,10 @@
                   "    pm.response.to.be.json;",
                   "});",
                   "",
-                  "pm.test(\"Pending payment created\", function () {",
+                  "pm.test(\"Pending fee with a platform reference to quote in the transfer\", function () {",
                   "    const b = pm.response.json();",
                   "    pm.expect(b.payment.status).to.eql(\"PENDING\");",
+                  "    pm.expect(b.payment.providerRef).to.match(/^TC-LIC-/);",
                   "    pm.collectionVariables.set(\"paymentId\", b.payment.id);",
                   "});"
                 ]
@@ -5353,7 +5437,7 @@
           "response": []
         },
         {
-          "name": "Pay – declined card",
+          "name": "Declare the MTN MoMo transfer",
           "event": [
             {
               "listen": "test",
@@ -5372,10 +5456,11 @@
                   "    pm.response.to.be.json;",
                   "});",
                   "",
-                  "pm.test(\"Payment FAILED with a reason\", function () {",
+                  "pm.test(\"Transfer waiting for the administrator\", function () {",
                   "    const p = pm.response.json().payment;",
-                  "    pm.expect(p.status).to.eql(\"FAILED\");",
-                  "    pm.expect(p.failureReason).to.be.a(\"string\");",
+                  "    pm.expect(p.status).to.eql(\"PENDING\");",
+                  "    pm.expect(p.method).to.eql(\"MTN_MOMO\");",
+                  "    pm.expect(p.submittedAt).to.be.a(\"string\");",
                   "});"
                 ]
               }
@@ -5383,12 +5468,7 @@
           ],
           "request": {
             "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "header": [],
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -5400,23 +5480,39 @@
               ]
             },
             "body": {
-              "mode": "raw",
-              "raw": "{\n  \"cardholderName\": \"Samuel Eto\",\n  \"cardNumber\": \"4000000000000002\",\n  \"expMonth\": 12,\n  \"expYear\": \"{{expYear}}\",\n  \"cvc\": \"123\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "method",
+                  "value": "MTN_MOMO",
+                  "type": "text"
+                },
+                {
+                  "key": "payerName",
+                  "value": "Samuel Eto",
+                  "type": "text"
+                },
+                {
+                  "key": "payerPhone",
+                  "value": "+237 6 77 88 99 00",
+                  "type": "text"
+                },
+                {
+                  "key": "transactionRef",
+                  "value": "MP2509.4242.A00421",
+                  "type": "text"
                 }
-              }
+              ]
             },
             "url": {
-              "raw": "{{baseUrl}}/payments/{{paymentId}}/pay",
+              "raw": "{{baseUrl}}/payments/{{paymentId}}/submit",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "payments",
                 "{{paymentId}}",
-                "pay"
+                "submit"
               ]
             },
             "description": ""
@@ -5424,7 +5520,314 @@
           "response": []
         },
         {
-          "name": "Pay – invalid card number (422)",
+          "name": "Declare a wallet number that is not Cameroonian (422)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 422\", function () {",
+                  "    pm.response.to.have.status(422);",
+                  "});",
+                  "",
+                  "pm.test(\"Response time is below 2000ms\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(2000);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.response.to.be.json;",
+                  "});",
+                  "",
+                  "pm.test(\"Error envelope has statusCode, message and path\", function () {",
+                  "    const b = pm.response.json();",
+                  "    pm.expect(b).to.have.property(\"statusCode\");",
+                  "    pm.expect(b).to.have.property(\"message\");",
+                  "    pm.expect(b).to.have.property(\"path\");",
+                  "    pm.expect(JSON.stringify(b)).to.not.include(\"stack\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{newPromoterToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "method",
+                  "value": "MTN_MOMO",
+                  "type": "text"
+                },
+                {
+                  "key": "payerName",
+                  "value": "Samuel Eto",
+                  "type": "text"
+                },
+                {
+                  "key": "payerPhone",
+                  "value": "+971 50 123 4567",
+                  "type": "text"
+                },
+                {
+                  "key": "transactionRef",
+                  "value": "MP2509.4242.A00422",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/payments/{{paymentId}}/submit",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "payments",
+                "{{paymentId}}",
+                "submit"
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "Start the second promoter's checkout",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test(\"Response time is below 2000ms\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(2000);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.response.to.be.json;",
+                  "});",
+                  "",
+                  "pm.test(\"Fee record created for the second promoter\", function () {",
+                  "    const b = pm.response.json();",
+                  "    pm.expect(b.payment.status).to.eql(\"PENDING\");",
+                  "    pm.collectionVariables.set(\"counterPaymentId\", b.payment.id);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{counterPromoterToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/payments/checkout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "payments",
+                "checkout"
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "Declare a transaction ID already in use (409)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 409\", function () {",
+                  "    pm.response.to.have.status(409);",
+                  "});",
+                  "",
+                  "pm.test(\"Response time is below 2000ms\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(2000);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.response.to.be.json;",
+                  "});",
+                  "",
+                  "pm.test(\"Error envelope has statusCode, message and path\", function () {",
+                  "    const b = pm.response.json();",
+                  "    pm.expect(b).to.have.property(\"statusCode\");",
+                  "    pm.expect(b).to.have.property(\"message\");",
+                  "    pm.expect(b).to.have.property(\"path\");",
+                  "    pm.expect(JSON.stringify(b)).to.not.include(\"stack\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{counterPromoterToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "method",
+                  "value": "ORANGE_MONEY",
+                  "type": "text"
+                },
+                {
+                  "key": "payerName",
+                  "value": "Awa Njoya",
+                  "type": "text"
+                },
+                {
+                  "key": "payerPhone",
+                  "value": "+237 6 50 41 22 08",
+                  "type": "text"
+                },
+                {
+                  "key": "transactionRef",
+                  "value": "MP2509.4242.A00421",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/payments/{{counterPaymentId}}/submit",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "payments",
+                "{{counterPaymentId}}",
+                "submit"
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "Declare the Orange Money transfer (second promoter)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test(\"Response time is below 2000ms\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(2000);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.response.to.be.json;",
+                  "});",
+                  "",
+                  "pm.test(\"Orange Money transfer waiting for confirmation\", function () {",
+                  "    const p = pm.response.json().payment;",
+                  "    pm.expect(p.method).to.eql(\"ORANGE_MONEY\");",
+                  "    pm.expect(p.status).to.eql(\"PENDING\");",
+                  "    pm.expect(p.submittedAt).to.be.a(\"string\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{counterPromoterToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "method",
+                  "value": "ORANGE_MONEY",
+                  "type": "text"
+                },
+                {
+                  "key": "payerName",
+                  "value": "Awa Njoya",
+                  "type": "text"
+                },
+                {
+                  "key": "payerPhone",
+                  "value": "+237 6 50 41 22 08",
+                  "type": "text"
+                },
+                {
+                  "key": "transactionRef",
+                  "value": "OM2509.5150.B00777",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/payments/{{counterPaymentId}}/submit",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "payments",
+                "{{counterPaymentId}}",
+                "submit"
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "Reject a transfer without a reason (422)",
           "event": [
             {
               "listen": "test",
@@ -5467,14 +5870,14 @@
               "bearer": [
                 {
                   "key": "token",
-                  "value": "{{newPromoterToken}}",
+                  "value": "{{adminToken}}",
                   "type": "string"
                 }
               ]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"cardholderName\": \"Samuel Eto\",\n  \"cardNumber\": \"1234567890123456\",\n  \"expMonth\": 12,\n  \"expYear\": \"{{expYear}}\",\n  \"cvc\": \"123\"\n}",
+              "raw": "{}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -5482,14 +5885,15 @@
               }
             },
             "url": {
-              "raw": "{{baseUrl}}/payments/{{paymentId}}/pay",
+              "raw": "{{baseUrl}}/admin/payments/{{paymentId}}/reject",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
+                "admin",
                 "payments",
                 "{{paymentId}}",
-                "pay"
+                "reject"
               ]
             },
             "description": ""
@@ -5497,7 +5901,7 @@
           "response": []
         },
         {
-          "name": "Pay – successful card",
+          "name": "Reject the transfer (admin)",
           "event": [
             {
               "listen": "test",
@@ -5516,10 +5920,10 @@
                   "    pm.response.to.be.json;",
                   "});",
                   "",
-                  "pm.test(\"Payment SUCCESS, only last4 stored\", function () {",
-                  "    const p = pm.response.json().payment;",
-                  "    pm.expect(p.status).to.eql(\"SUCCESS\");",
-                  "    pm.expect(JSON.stringify(p)).to.not.include(\"4242424242424242\");",
+                  "pm.test(\"Transfer FAILED with the administrator's reason\", function () {",
+                  "    const p = pm.response.json();",
+                  "    pm.expect(p.status).to.eql(\"FAILED\");",
+                  "    pm.expect(p.reviewNote).to.contain(\"merchant statement\");",
                   "});"
                 ]
               }
@@ -5538,14 +5942,14 @@
               "bearer": [
                 {
                   "key": "token",
-                  "value": "{{newPromoterToken}}",
+                  "value": "{{adminToken}}",
                   "type": "string"
                 }
               ]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"cardholderName\": \"Samuel Eto\",\n  \"cardNumber\": \"4242424242424242\",\n  \"expMonth\": 12,\n  \"expYear\": \"{{expYear}}\",\n  \"cvc\": \"123\"\n}",
+              "raw": "{\n  \"reason\": \"This transaction ID does not appear on the MoMo merchant statement.\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -5553,14 +5957,298 @@
               }
             },
             "url": {
-              "raw": "{{baseUrl}}/payments/{{paymentId}}/pay",
+              "raw": "{{baseUrl}}/admin/payments/{{paymentId}}/reject",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "payments",
+                "{{paymentId}}",
+                "reject"
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "Confirm a rejected transfer (409)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 409\", function () {",
+                  "    pm.response.to.have.status(409);",
+                  "});",
+                  "",
+                  "pm.test(\"Response time is below 2000ms\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(2000);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.response.to.be.json;",
+                  "});",
+                  "",
+                  "pm.test(\"Error envelope has statusCode, message and path\", function () {",
+                  "    const b = pm.response.json();",
+                  "    pm.expect(b).to.have.property(\"statusCode\");",
+                  "    pm.expect(b).to.have.property(\"message\");",
+                  "    pm.expect(b).to.have.property(\"path\");",
+                  "    pm.expect(JSON.stringify(b)).to.not.include(\"stack\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"note\": \"Only transfers that are waiting can be confirmed.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/payments/{{paymentId}}/confirm",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "payments",
+                "{{paymentId}}",
+                "confirm"
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "Resubmit with the corrected transaction ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test(\"Response time is below 2000ms\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(2000);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.response.to.be.json;",
+                  "});",
+                  "",
+                  "pm.test(\"Back in the confirmation queue\", function () {",
+                  "    const p = pm.response.json().payment;",
+                  "    pm.expect(p.status).to.eql(\"PENDING\");",
+                  "    pm.expect(p.transactionRef).to.eql(\"MP2509.4242.A00423\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{newPromoterToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "method",
+                  "value": "MTN_MOMO",
+                  "type": "text"
+                },
+                {
+                  "key": "payerName",
+                  "value": "Samuel Eto",
+                  "type": "text"
+                },
+                {
+                  "key": "payerPhone",
+                  "value": "+237 6 77 88 99 00",
+                  "type": "text"
+                },
+                {
+                  "key": "transactionRef",
+                  "value": "MP2509.4242.A00423",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/payments/{{paymentId}}/submit",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "payments",
                 "{{paymentId}}",
-                "pay"
+                "submit"
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "Confirm the transfer (admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test(\"Response time is below 2000ms\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(2000);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.response.to.be.json;",
+                  "});",
+                  "",
+                  "pm.test(\"Transfer confirmed\", function () {",
+                  "    const b = pm.response.json();",
+                  "    pm.expect(b.status).to.eql(\"SUCCESS\");",
+                  "    pm.expect(b.confirmedAt).to.be.a(\"string\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"note\": \"Seen on the MTN MoMo merchant wallet.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/payments/{{paymentId}}/confirm",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "payments",
+                "{{paymentId}}",
+                "confirm"
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "The fee is marked as paid on my profile",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response time is below 2000ms\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(2000);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.response.to.be.json;",
+                  "});",
+                  "",
+                  "pm.test(\"Promoter sees the confirmed fee\", function () {",
+                  "    const b = pm.response.json();",
+                  "    pm.expect(b.licenceFeePaid).to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{newPromoterToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/promoters/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "promoters",
+                "me"
               ]
             },
             "description": ""
@@ -5592,6 +6280,12 @@
                   "    pm.expect(b.items).to.be.an(\"array\");",
                   "    pm.expect(b).to.have.property(\"total\");",
                   "    pm.expect(b).to.have.property(\"page\");",
+                  "});",
+                  "",
+                  "pm.test(\"Totals are reported in FCFA\", function () {",
+                  "    const b = pm.response.json();",
+                  "    pm.expect(b.totalPaid).to.be.above(0);",
+                  "    pm.expect(b.config.currency).to.eql(\"XAF\");",
                   "});"
                 ]
               }
@@ -5672,12 +6366,74 @@
             "description": ""
           },
           "response": []
+        },
+        {
+          "name": "Checkout while a transfer is already declared (409)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 409\", function () {",
+                  "    pm.response.to.have.status(409);",
+                  "});",
+                  "",
+                  "pm.test(\"Response time is below 2000ms\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(2000);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.response.to.be.json;",
+                  "});",
+                  "",
+                  "pm.test(\"Error envelope has statusCode, message and path\", function () {",
+                  "    const b = pm.response.json();",
+                  "    pm.expect(b).to.have.property(\"statusCode\");",
+                  "    pm.expect(b).to.have.property(\"message\");",
+                  "    pm.expect(b).to.have.property(\"path\");",
+                  "    pm.expect(JSON.stringify(b)).to.not.include(\"stack\");",
+                  "});",
+                  "",
+                  "pm.test(\"No second transfer while one is waiting\", function () {",
+                  "    pm.expect(JSON.stringify(pm.response.json())).to.include(\"waiting\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{counterPromoterToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/payments/checkout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "payments",
+                "checkout"
+              ]
+            },
+            "description": ""
+          },
+          "response": []
         }
       ]
     },
     {
       "name": "13 · AI assistant",
-      "description": "AI writing assistant for talents (offline provider when no key is configured).",
+      "description": "AI writing assistant for talents. Live with Groq as soon as GROQ_API_KEY is set on the server (xAI Grok and any OpenAI-compatible endpoint are also supported); otherwise the offline template writer answers and /ai/status says so.",
       "item": [
         {
           "name": "Get AI status",
@@ -5697,6 +6453,14 @@
                   "",
                   "pm.test(\"Response is JSON\", function () {",
                   "    pm.response.to.be.json;",
+                  "});",
+                  "",
+                  "pm.test(\"Status names the adapter without leaking the key\", function () {",
+                  "    const b = pm.response.json();",
+                  "    pm.expect(b.provider).to.be.a(\"string\");",
+                  "    pm.expect(b.providerLabel).to.be.a(\"string\");",
+                  "    pm.expect(b.mode).to.be.oneOf([\"live\", \"offline\"]);",
+                  "    pm.expect(JSON.stringify(b)).to.not.match(/key|secret/i);",
                   "});"
                 ]
               }
@@ -5901,7 +6665,7 @@
     },
     {
       "name": "14 · Admin",
-      "description": "Platform administration: users, verification, moderation, payments and reports.",
+      "description": "Platform administration: users, verification, moderation, licence fees (settings, confirmation queue, counter payments) and reports.",
       "item": [
         {
           "name": "Get platform stats",
@@ -5997,6 +6761,351 @@
               "path": [
                 "admin",
                 "monitoring"
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "Get licence-fee settings",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response time is below 2000ms\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(2000);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.response.to.be.json;",
+                  "});",
+                  "",
+                  "pm.test(\"Admin owns the fee and the Mobile Money wallets\", function () {",
+                  "    const b = pm.response.json();",
+                  "    pm.expect(b.settings.amount).to.be.a(\"number\");",
+                  "    pm.expect(b.settings.currency).to.eql(\"XAF\");",
+                  "    pm.expect(b.settings.mtnNumber).to.be.a(\"string\").and.not.empty;",
+                  "    pm.expect(b.settings.orangeNumber).to.be.a(\"string\").and.not.empty;",
+                  "    pm.expect(b.overview.collected).to.be.a(\"number\");",
+                  "    pm.expect(b.limits.minFee).to.be.a(\"number\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/licence-fee",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "licence-fee"
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "Update licence-fee settings",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response time is below 2000ms\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(2000);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.response.to.be.json;",
+                  "});",
+                  "",
+                  "pm.test(\"Fee saved in whole FCFA\", function () {",
+                  "    const b = pm.response.json();",
+                  "    pm.expect(b.settings.amount).to.eql(30000);",
+                  "    pm.expect(b.settings.currency).to.eql(\"XAF\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 30000,\n  \"payeeName\": \"Talent Connect Cameroun SARL\",\n  \"mtnNumber\": \"+237 6 77 12 34 56\",\n  \"orangeNumber\": \"+237 6 99 12 34 56\",\n  \"instructions\": \"Dial *126# (MTN MoMo) or #150# (Orange Money), choose Transfer, send the exact fee to the wallet shown and keep the SMS receipt.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/licence-fee",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "licence-fee"
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "Update licence fee – amount outside the limits (422)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 422\", function () {",
+                  "    pm.response.to.have.status(422);",
+                  "});",
+                  "",
+                  "pm.test(\"Response time is below 2000ms\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(2000);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.response.to.be.json;",
+                  "});",
+                  "",
+                  "pm.test(\"Error envelope has statusCode, message and path\", function () {",
+                  "    const b = pm.response.json();",
+                  "    pm.expect(b).to.have.property(\"statusCode\");",
+                  "    pm.expect(b).to.have.property(\"message\");",
+                  "    pm.expect(b).to.have.property(\"path\");",
+                  "    pm.expect(JSON.stringify(b)).to.not.include(\"stack\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 200\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/licence-fee",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "licence-fee"
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "Turn both Mobile Money services off (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 400\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test(\"Response time is below 2000ms\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(2000);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.response.to.be.json;",
+                  "});",
+                  "",
+                  "pm.test(\"Error envelope has statusCode, message and path\", function () {",
+                  "    const b = pm.response.json();",
+                  "    pm.expect(b).to.have.property(\"statusCode\");",
+                  "    pm.expect(b).to.have.property(\"message\");",
+                  "    pm.expect(b).to.have.property(\"path\");",
+                  "    pm.expect(JSON.stringify(b)).to.not.include(\"stack\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mtnEnabled\": false,\n  \"orangeEnabled\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/licence-fee",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "licence-fee"
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "List transfers waiting for confirmation",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response time is below 2000ms\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(2000);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.response.to.be.json;",
+                  "});",
+                  "",
+                  "pm.test(\"Paginated payload (items, total, page)\", function () {",
+                  "    const b = pm.response.json();",
+                  "    pm.expect(b.items).to.be.an(\"array\");",
+                  "    pm.expect(b).to.have.property(\"total\");",
+                  "    pm.expect(b).to.have.property(\"page\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/payments?awaiting=true&page=1&pageSize=5",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "payments"
+              ],
+              "query": [
+                {
+                  "key": "awaiting",
+                  "value": "true"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "pageSize",
+                  "value": "5"
+                }
               ]
             },
             "description": ""
@@ -6737,6 +7846,151 @@
                 "payments",
                 "{{paymentId}}",
                 "refund"
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "Record a counter payment received at the office",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test(\"Response time is below 2000ms\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(2000);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.response.to.be.json;",
+                  "});",
+                  "",
+                  "pm.test(\"Fee recorded as confirmed under the admin reference\", function () {",
+                  "    const p = pm.response.json();",
+                  "    pm.expect(p.status).to.eql(\"SUCCESS\");",
+                  "    pm.expect(p.method).to.eql(\"OFFLINE\");",
+                  "    pm.expect(p.providerRef).to.match(/^TC-LIC-ADMIN-/);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"promoterId\": \"{{counterPromoterId}}\",\n  \"method\": \"OFFLINE\",\n  \"payerName\": \"Awa Njoya\",\n  \"payerPhone\": \"+237 6 50 41 22 08\",\n  \"note\": \"Cash received at the Douala office, receipt No. 0042.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/payments/manual",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "payments",
+                "manual"
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "Record the same fee again (409)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 409\", function () {",
+                  "    pm.response.to.have.status(409);",
+                  "});",
+                  "",
+                  "pm.test(\"Response time is below 2000ms\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(2000);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.response.to.be.json;",
+                  "});",
+                  "",
+                  "pm.test(\"Error envelope has statusCode, message and path\", function () {",
+                  "    const b = pm.response.json();",
+                  "    pm.expect(b).to.have.property(\"statusCode\");",
+                  "    pm.expect(b).to.have.property(\"message\");",
+                  "    pm.expect(b).to.have.property(\"path\");",
+                  "    pm.expect(JSON.stringify(b)).to.not.include(\"stack\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"promoterId\": \"{{counterPromoterId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/payments/manual",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "payments",
+                "manual"
               ]
             },
             "description": ""

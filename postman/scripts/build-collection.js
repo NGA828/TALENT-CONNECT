@@ -132,6 +132,16 @@ items.push(
       tests: `pm.test("Returns an access token and PROMOTER user", function () {\n    const b = pm.response.json();\n    pm.expect(b.user.role).to.eql("PROMOTER");\n    pm.collectionVariables.set("newPromoterToken", b.accessToken);\n    pm.collectionVariables.set("newPromoterUserId", b.user.id);\n});`,
     }),
     req({
+      name: 'Register promoter – counter payment scenario',
+      method: 'POST', path: '/auth/register/promoter', expect: 201,
+      body: json({
+        firstName: 'Awa', lastName: 'Njoya', email: 'awa.njoya.{{runId}}@example.com', phone: '+237 6 50 41 22 08',
+        password: 'Password123!', confirmPassword: 'Password123!', agencyName: 'Limbe Photo House', licenceNumber: 'CM-LIM-2026-0912',
+        licenceInfo: 'Photography studio in Limbe (demo).',
+      }),
+      tests: `pm.test("Second promoter saved for the counter payment and duplicate-reference checks", function () {\n    const b = pm.response.json();\n    pm.expect(b.user.role).to.eql("PROMOTER");\n    pm.collectionVariables.set("counterPromoterToken", b.accessToken);\n    pm.collectionVariables.set("counterPromoterId", b.user.promoter.id);\n});`,
+    }),
+    req({
       name: 'Login – admin',
       method: 'POST', path: '/auth/login', expect: 200,
       body: json({ email: '{{adminEmail}}', password: '{{adminPassword}}' }),
@@ -492,39 +502,153 @@ items.push(
 );
 
 items.push(
-  folder('12 · Payments', 'Licence-fee payment through the sandbox provider.', [
+  folder('12 · Payments – licence fee', 'The licence fee in FCFA, paid the Cameroonian way: MTN Mobile Money (*126#) or Orange Money (#150#) to the merchant wallet, then declared in the app and confirmed by an administrator.', [
     req({ name: 'Get payment config', method: 'GET', path: '/payments/config', token: 'newPromoterToken', expect: 200,
-      tests: `pm.test("Sandbox provider in XAF", function () {\n    const b = pm.response.json();\n    pm.expect(b.sandbox).to.eql(true);\n    pm.expect(b.currency).to.eql("XAF");\n});` }),
+      tests: `pm.test("Mobile Money wallets in FCFA, no automatic gateway", function () {
+    const b = pm.response.json();
+    pm.expect(b.currency).to.eql("XAF");
+    pm.expect(b.automatic).to.eql(false);
+    pm.expect(b.licenceFee).to.be.a("number");
+    const mtn = b.methods.find((m) => m.value === "MTN_MOMO");
+    const orange = b.methods.find((m) => m.value === "ORANGE_MONEY");
+    pm.expect(mtn.ussd).to.eql("*126#");
+    pm.expect(orange.ussd).to.eql("#150#");
+    pm.expect(mtn.number).to.be.a("string").and.not.empty;
+});` }),
     req({
       name: 'Start licence-fee checkout',
       method: 'POST', path: '/payments/checkout', token: 'newPromoterToken', expect: 201,
-      tests: `pm.test("Pending payment created", function () {\n    const b = pm.response.json();\n    pm.expect(b.payment.status).to.eql("PENDING");\n    pm.collectionVariables.set("paymentId", b.payment.id);\n});`,
+      tests: `pm.test("Pending fee with a platform reference to quote in the transfer", function () {
+    const b = pm.response.json();
+    pm.expect(b.payment.status).to.eql("PENDING");
+    pm.expect(b.payment.providerRef).to.match(/^TC-LIC-/);
+    pm.collectionVariables.set("paymentId", b.payment.id);
+});`,
     }),
     req({
-      name: 'Pay – declined card',
-      method: 'POST', path: '/payments/{{paymentId}}/pay', token: 'newPromoterToken', expect: 201,
-      body: json({ cardholderName: 'Samuel Eto', cardNumber: '4000000000000002', expMonth: 12, expYear: '{{expYear}}', cvc: '123' }),
-      tests: `pm.test("Payment FAILED with a reason", function () {\n    const p = pm.response.json().payment;\n    pm.expect(p.status).to.eql("FAILED");\n    pm.expect(p.failureReason).to.be.a("string");\n});`,
+      name: 'Declare the MTN MoMo transfer',
+      method: 'POST', path: '/payments/{{paymentId}}/submit', token: 'newPromoterToken', expect: 201,
+      body: form([
+        text('method', 'MTN_MOMO'), text('payerName', 'Samuel Eto'), text('payerPhone', '+237 6 77 88 99 00'),
+        text('transactionRef', 'MP2509.4242.A00421'),
+      ]),
+      tests: `pm.test("Transfer waiting for the administrator", function () {
+    const p = pm.response.json().payment;
+    pm.expect(p.status).to.eql("PENDING");
+    pm.expect(p.method).to.eql("MTN_MOMO");
+    pm.expect(p.submittedAt).to.be.a("string");
+});`,
     }),
     req({
-      name: 'Pay – invalid card number (422)',
-      method: 'POST', path: '/payments/{{paymentId}}/pay', token: 'newPromoterToken', expect: 422,
-      body: json({ cardholderName: 'Samuel Eto', cardNumber: '1234567890123456', expMonth: 12, expYear: '{{expYear}}', cvc: '123' }),
+      name: 'Declare a wallet number that is not Cameroonian (422)',
+      method: 'POST', path: '/payments/{{paymentId}}/submit', token: 'newPromoterToken', expect: 422,
+      body: form([
+        text('method', 'MTN_MOMO'), text('payerName', 'Samuel Eto'), text('payerPhone', '+971 50 123 4567'),
+        text('transactionRef', 'MP2509.4242.A00422'),
+      ]),
     }),
     req({
-      name: 'Pay – successful card',
-      method: 'POST', path: '/payments/{{paymentId}}/pay', token: 'newPromoterToken', expect: 201,
-      body: json({ cardholderName: 'Samuel Eto', cardNumber: '4242424242424242', expMonth: 12, expYear: '{{expYear}}', cvc: '123' }),
-      tests: `pm.test("Payment SUCCESS, only last4 stored", function () {\n    const p = pm.response.json().payment;\n    pm.expect(p.status).to.eql("SUCCESS");\n    pm.expect(JSON.stringify(p)).to.not.include("4242424242424242");\n});`,
+      name: 'Start the second promoter\'s checkout',
+      method: 'POST', path: '/payments/checkout', token: 'counterPromoterToken', expect: 201,
+      tests: `pm.test("Fee record created for the second promoter", function () {
+    const b = pm.response.json();
+    pm.expect(b.payment.status).to.eql("PENDING");
+    pm.collectionVariables.set("counterPaymentId", b.payment.id);
+});`,
     }),
-    req({ name: 'List my payments', method: 'GET', path: '/payments', token: 'newPromoterToken', expect: 200, tests: pageTest }),
+    req({
+      name: 'Declare a transaction ID already in use (409)',
+      method: 'POST', path: '/payments/{{counterPaymentId}}/submit', token: 'counterPromoterToken', expect: 409,
+      body: form([
+        text('method', 'ORANGE_MONEY'), text('payerName', 'Awa Njoya'), text('payerPhone', '+237 6 50 41 22 08'),
+        text('transactionRef', 'MP2509.4242.A00421'),
+      ]),
+    }),
+    req({
+      name: 'Declare the Orange Money transfer (second promoter)',
+      method: 'POST', path: '/payments/{{counterPaymentId}}/submit', token: 'counterPromoterToken', expect: 201,
+      body: form([
+        text('method', 'ORANGE_MONEY'), text('payerName', 'Awa Njoya'), text('payerPhone', '+237 6 50 41 22 08'),
+        text('transactionRef', 'OM2509.5150.B00777'),
+      ]),
+      tests: `pm.test("Orange Money transfer waiting for confirmation", function () {
+    const p = pm.response.json().payment;
+    pm.expect(p.method).to.eql("ORANGE_MONEY");
+    pm.expect(p.status).to.eql("PENDING");
+    pm.expect(p.submittedAt).to.be.a("string");
+});`,
+    }),
+    req({
+      name: 'Reject a transfer without a reason (422)',
+      method: 'POST', path: '/admin/payments/{{paymentId}}/reject', token: 'adminToken', expect: 422,
+      body: json({}),
+    }),
+    req({
+      name: 'Reject the transfer (admin)',
+      method: 'POST', path: '/admin/payments/{{paymentId}}/reject', token: 'adminToken', expect: 201,
+      body: json({ reason: 'This transaction ID does not appear on the MoMo merchant statement.' }),
+      tests: `pm.test("Transfer FAILED with the administrator's reason", function () {
+    const p = pm.response.json();
+    pm.expect(p.status).to.eql("FAILED");
+    pm.expect(p.reviewNote).to.contain("merchant statement");
+});`,
+    }),
+    req({
+      name: 'Confirm a rejected transfer (409)',
+      method: 'POST', path: '/admin/payments/{{paymentId}}/confirm', token: 'adminToken', expect: 409,
+      body: json({ note: 'Only transfers that are waiting can be confirmed.' }),
+    }),
+    req({
+      name: 'Resubmit with the corrected transaction ID',
+      method: 'POST', path: '/payments/{{paymentId}}/submit', token: 'newPromoterToken', expect: 201,
+      body: form([
+        text('method', 'MTN_MOMO'), text('payerName', 'Samuel Eto'), text('payerPhone', '+237 6 77 88 99 00'),
+        text('transactionRef', 'MP2509.4242.A00423'),
+      ]),
+      tests: `pm.test("Back in the confirmation queue", function () {
+    const p = pm.response.json().payment;
+    pm.expect(p.status).to.eql("PENDING");
+    pm.expect(p.transactionRef).to.eql("MP2509.4242.A00423");
+});`,
+    }),
+    req({
+      name: 'Confirm the transfer (admin)',
+      method: 'POST', path: '/admin/payments/{{paymentId}}/confirm', token: 'adminToken', expect: 201,
+      body: json({ note: 'Seen on the MTN MoMo merchant wallet.' }),
+      tests: `pm.test("Transfer confirmed", function () {
+    const b = pm.response.json();
+    pm.expect(b.status).to.eql("SUCCESS");
+    pm.expect(b.confirmedAt).to.be.a("string");
+});`,
+    }),
+    req({ name: 'The fee is marked as paid on my profile', method: 'GET', path: '/promoters/me', token: 'newPromoterToken', expect: 200,
+      tests: `pm.test("Promoter sees the confirmed fee", function () {
+    const b = pm.response.json();
+    pm.expect(b.licenceFeePaid).to.eql(true);
+});` }),
+    req({ name: 'List my payments', method: 'GET', path: '/payments', token: 'newPromoterToken', expect: 200,
+      tests: `${pageTest}\n\npm.test("Totals are reported in FCFA", function () {\n    const b = pm.response.json();\n    pm.expect(b.totalPaid).to.be.above(0);\n    pm.expect(b.config.currency).to.eql("XAF");\n});` }),
     req({ name: 'Get payment by id', method: 'GET', path: '/payments/{{paymentId}}', token: 'newPromoterToken', expect: 200 }),
+    req({
+      name: 'Checkout while a transfer is already declared (409)',
+      method: 'POST', path: '/payments/checkout', token: 'counterPromoterToken', expect: 409,
+      tests: `pm.test("No second transfer while one is waiting", function () {
+    pm.expect(JSON.stringify(pm.response.json())).to.include("waiting");
+});`,
+    }),
   ]),
 );
 
 items.push(
-  folder('13 · AI assistant', 'AI writing assistant for talents (offline provider when no key is configured).', [
-    req({ name: 'Get AI status', method: 'GET', path: '/ai/status', token: 'talentToken', expect: 200 }),
+  folder('13 · AI assistant', 'AI writing assistant for talents. Live with Groq as soon as GROQ_API_KEY is set on the server (xAI Grok and any OpenAI-compatible endpoint are also supported); otherwise the offline template writer answers and /ai/status says so.', [
+    req({ name: 'Get AI status', method: 'GET', path: '/ai/status', token: 'talentToken', expect: 200,
+      tests: `pm.test("Status names the adapter without leaking the key", function () {
+    const b = pm.response.json();
+    pm.expect(b.provider).to.be.a("string");
+    pm.expect(b.providerLabel).to.be.a("string");
+    pm.expect(b.mode).to.be.oneOf(["live", "offline"]);
+    pm.expect(JSON.stringify(b)).to.not.match(/key|secret/i);
+});` }),
     req({
       name: 'Chat – improve bio',
       method: 'POST', path: '/ai/chat', token: 'talentToken', expect: 200,
@@ -537,9 +661,35 @@ items.push(
 );
 
 items.push(
-  folder('14 · Admin', 'Platform administration: users, verification, moderation, payments and reports.', [
+  folder('14 · Admin', 'Platform administration: users, verification, moderation, licence fees (settings, confirmation queue, counter payments) and reports.', [
     req({ name: 'Get platform stats', method: 'GET', path: '/admin/stats', token: 'adminToken', expect: 200 }),
     req({ name: 'Get monitoring data', method: 'GET', path: '/admin/monitoring', token: 'adminToken', expect: 200 }),
+    req({ name: 'Get licence-fee settings', method: 'GET', path: '/admin/licence-fee', token: 'adminToken', expect: 200,
+      tests: `pm.test("Admin owns the fee and the Mobile Money wallets", function () {
+    const b = pm.response.json();
+    pm.expect(b.settings.amount).to.be.a("number");
+    pm.expect(b.settings.currency).to.eql("XAF");
+    pm.expect(b.settings.mtnNumber).to.be.a("string").and.not.empty;
+    pm.expect(b.settings.orangeNumber).to.be.a("string").and.not.empty;
+    pm.expect(b.overview.collected).to.be.a("number");
+    pm.expect(b.limits.minFee).to.be.a("number");
+});` }),
+    req({ name: 'Update licence-fee settings', method: 'PATCH', path: '/admin/licence-fee', token: 'adminToken', expect: 200,
+      body: json({
+        amount: 30000, payeeName: 'Talent Connect Cameroun SARL',
+        mtnNumber: '+237 6 77 12 34 56', orangeNumber: '+237 6 99 12 34 56',
+        instructions: 'Dial *126# (MTN MoMo) or #150# (Orange Money), choose Transfer, send the exact fee to the wallet shown and keep the SMS receipt.',
+      }),
+      tests: `pm.test("Fee saved in whole FCFA", function () {
+    const b = pm.response.json();
+    pm.expect(b.settings.amount).to.eql(30000);
+    pm.expect(b.settings.currency).to.eql("XAF");
+});` }),
+    req({ name: 'Update licence fee – amount outside the limits (422)', method: 'PATCH', path: '/admin/licence-fee', token: 'adminToken', expect: 422,
+      body: json({ amount: 200 }) }),
+    req({ name: 'Turn both Mobile Money services off (400)', method: 'PATCH', path: '/admin/licence-fee', token: 'adminToken', expect: 400,
+      body: json({ mtnEnabled: false, orangeEnabled: false }) }),
+    req({ name: 'List transfers waiting for confirmation', method: 'GET', path: '/admin/payments?awaiting=true&page=1&pageSize=5', token: 'adminToken', expect: 200, tests: pageTest }),
     req({ name: 'List users', method: 'GET', path: '/admin/users?role=TALENT&page=1&pageSize=5', token: 'adminToken', expect: 200, tests: pageTest }),
     req({
       name: 'List promoters pending verification',
@@ -574,6 +724,22 @@ items.push(
     req({ name: 'List payments (admin)', method: 'GET', path: '/admin/payments?status=SUCCESS&page=1&pageSize=5', token: 'adminToken', expect: 200, tests: pageTest }),
     req({ name: 'Refund payment', method: 'POST', path: '/admin/payments/{{paymentId}}/refund', token: 'adminToken', expect: 201,
       tests: `pm.test("Payment REFUNDED", function () {\n    pm.expect(JSON.stringify(pm.response.json())).to.include("REFUNDED");\n});` }),
+    req({
+      name: 'Record a counter payment received at the office',
+      method: 'POST', path: '/admin/payments/manual', token: 'adminToken', expect: 201,
+      body: json({
+        promoterId: '{{counterPromoterId}}', method: 'OFFLINE', payerName: 'Awa Njoya', payerPhone: '+237 6 50 41 22 08',
+        note: 'Cash received at the Douala office, receipt No. 0042.',
+      }),
+      tests: `pm.test("Fee recorded as confirmed under the admin reference", function () {
+    const p = pm.response.json();
+    pm.expect(p.status).to.eql("SUCCESS");
+    pm.expect(p.method).to.eql("OFFLINE");
+    pm.expect(p.providerRef).to.match(/^TC-LIC-ADMIN-/);
+});`,
+    }),
+    req({ name: 'Record the same fee again (409)', method: 'POST', path: '/admin/payments/manual', token: 'adminToken', expect: 409,
+      body: json({ promoterId: '{{counterPromoterId}}' }) }),
     req({ name: 'Generate report (JSON)', method: 'GET', path: '/admin/reports/contracts?format=json', token: 'adminToken', expect: 200,
       tests: `pm.test("Report has columns and rows", function () {\n    const b = pm.response.json();\n    pm.expect(b.columns).to.be.an("array");\n    pm.expect(b.rows).to.be.an("array");\n});` }),
     req({ name: 'Export report (CSV)', method: 'GET', path: '/admin/reports/users?format=csv', token: 'adminToken', expect: 200, noJson: true,
@@ -611,7 +777,8 @@ const collection = {
     'runId', 'futureDate', 'licenceExpiry', 'expYear',
     'adminToken', 'talentToken', 'promoterToken', 'newTalentToken', 'newPromoterToken',
     'talentUserId', 'talentId', 'promoterUserId', 'newTalentUserId', 'newPromoterUserId', 'newPromoterId',
-    'portfolioId', 'eventId', 'eventImageId', 'draftEventId', 'contractId', 'messageId', 'notificationId', 'paymentId',
+    'portfolioId', 'eventId', 'eventImageId', 'draftEventId', 'contractId', 'messageId', 'notificationId',
+    'paymentId', 'counterPromoterToken', 'counterPromoterId', 'counterPaymentId',
   ].map((key) => ({ key, value: '' })),
   item: items,
 };

@@ -4,10 +4,11 @@ import { AuthUser } from '../common/decorators';
 import { PrismaService } from '../prisma/prisma.service';
 import { ChatDto } from './dto/ai.dto';
 import { AiChatMessage, AiContext, AiProvider, AiTask } from './providers/ai.provider';
+import { AI_PROVIDER_LABELS, AiProviderId } from './providers/ai-config';
 
 const SYSTEM_PROMPT = `You are "Connect AI", the assistant inside Talent Connect – a platform where talents (photographers, DJs, dancers, musicians, hosts…) build portfolios, enroll in events and sign contracts with promoters.
 Rules: be concise, practical and professional. Write in the user's language. Never invent facts about the user – use only the profile data provided. Do not ask for or reveal passwords, payment or personal data. If asked about something unrelated to a talent's career or the platform, politely steer back.
-Platform facts: talents enroll in published events; promoters create contracts (PENDING→ACTIVE when the talent accepts; COMPLETED, CANCELLED or REJECTED otherwise); promoters must have a verified licence; ratings come from promoters after completed contracts; portfolio uploads accept images, video, audio and PDF and are moderated by administrators.`;
+Platform facts: talents enroll in published events; promoters create contracts (PENDING→ACTIVE when the talent accepts; COMPLETED, CANCELLED or REJECTED otherwise); promoters must have a verified licence; ratings come from promoters after completed contracts; portfolio uploads accept images, video, audio and PDF and are moderated by administrators. Money on the platform is in CFA francs (XAF, written FCFA) with no decimals; the promoter licence fee is set by the platform administrators and paid with Mobile Money — MTN MoMo via *126# or Orange Money via #150# — to the merchant number the administrators publish, after which an administrator confirms the transfer before the licence can be approved. Talents never pay to use the platform.`;
 
 @Injectable()
 export class AiService {
@@ -17,7 +18,14 @@ export class AiService {
   ) {}
 
   status() {
-    return { provider: this.provider.name, live: this.provider.live, model: this.provider.model, mode: this.provider.live ? 'live' : 'offline' };
+    const name = this.provider.name as AiProviderId;
+    return {
+      provider: this.provider.name,
+      providerLabel: AI_PROVIDER_LABELS[name] ?? this.provider.name,
+      live: this.provider.live,
+      model: this.provider.model,
+      mode: this.provider.live ? 'live' : 'offline',
+    };
   }
 
   async history(userId: string) {

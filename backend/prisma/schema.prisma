@@ -68,6 +68,14 @@ enum PaymentPurpose {
   LICENCE_FEE
 }
 
+/// How the licence fee reaches the platform. MTN MoMo and Orange Money are the two
+/// Mobile Money services used in Cameroon; OFFLINE covers cash handed to an administrator.
+enum PaymentMethod {
+  MTN_MOMO
+  ORANGE_MONEY
+  OFFLINE
+}
+
 enum NotificationType {
   CONTRACT
   EVENT
@@ -107,6 +115,7 @@ model User {
   notifications Notification[]
   ratingsGiven  Rating[]       @relation("RatingAuthor")
   licenceReviews LicenceReview[] @relation("ReviewAdmin")
+  paymentReviews Payment[]      @relation("PaymentReviewer")
   aiMessages    AiMessage[]
 
   @@index([role, status])
@@ -285,24 +294,47 @@ model Contract {
 }
 
 model Payment {
-  id          String         @id @default(cuid())
-  promoterId  String
-  purpose     PaymentPurpose @default(LICENCE_FEE)
-  amount      Float
-  currency    String         @default("XAF")
-  status      PaymentStatus  @default(PENDING)
-  provider    String
-  providerRef String?
-  cardBrand   String?
-  cardLast4   String?
-  failureReason String?
-  description String?
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  id             String         @id @default(cuid())
+  promoterId     String
+  purpose        PaymentPurpose @default(LICENCE_FEE)
+  amount         Float
+  currency       String         @default("XAF")
+  status         PaymentStatus  @default(PENDING)
+  /// Mobile Money service used for the transfer. Null until the promoter submits the transaction.
+  method         PaymentMethod?
+  provider       String
+  /// Reference the promoter quotes when sending the money (e.g. TC-LIC-8F3A21).
+  providerRef    String?
+  /// Transaction ID from the MTN MoMo / Orange Money SMS receipt.
+  transactionRef String?
+  payerName      String?
+  /// Mobile Money number that sent the money, stored as +2376XXXXXXXXX.
+  payerPhone     String?
+  /// Screenshot / PDF of the Mobile Money receipt uploaded by the promoter.
+  receiptUrl     String?
+  failureReason  String?
+  /// Note left by the administrator when confirming, rejecting or refunding.
+  reviewNote     String?
+  reviewedById   String?
+  description    String?
+  submittedAt    DateTime?
+  confirmedAt    DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 
-  promoter Promoter @relation(fields: [promoterId], references: [id], onDelete: Cascade)
+  promoter   Promoter @relation(fields: [promoterId], references: [id], onDelete: Cascade)
+  reviewedBy User?    @relation("PaymentReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
 
   @@index([promoterId, status])
+  @@index([status, submittedAt])
+}
+
+/// Platform-wide settings managed by administrators from the admin workspace
+/// (licence fee amount, the MTN MoMo / Orange Money numbers that collect it, …).
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
 }
 
 model Message {

@@ -158,7 +158,7 @@ function PromoterForm() {
       {formError && <Alert tone="danger">{formError}</Alert>}
       <CommonFields register={register as never} errors={errors as never} />
       <Input label="Agency name" required error={errors.agencyName?.message} {...register('agencyName')} />
-      <Input label="Licence number" required hint="You can upload the licence document and pay the verification fee after signing up." error={errors.licenceNumber?.message} {...register('licenceNumber')} />
+      <Input label="Licence number" required hint="You can upload the licence document and pay the licence fee with Mobile Money after signing up." error={errors.licenceNumber?.message} {...register('licenceNumber')} />
       <Textarea label="Licence information" rows={3} placeholder="Issuing authority, licence type, expiry date…" error={errors.licenceInfo?.message} {...register('licenceInfo')} />
       <PasswordFields register={register as never} errors={errors as never} />
       <Button type="submit" size="lg" className="w-full" loading={isSubmitting} disabled={!hydrated}>Create promoter account</Button>

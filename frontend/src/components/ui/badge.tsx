@@ -36,6 +36,22 @@ const statusTone: Record<string, Tone> = {
 
 const statusLabel: Record<string, string> = { ACTIVE: 'Active', NOT_SUBMITTED: 'Not submitted' };
 
+/** Payment statuses read differently in Cameroon: a submitted Mobile Money transfer waits for the administrator. */
+const paymentLabel: Record<string, string> = { PENDING: 'Awaiting confirmation', SUCCESS: 'Confirmed', FAILED: 'Rejected', REFUNDED: 'Refunded' };
+
+export function PaymentStatusBadge({ status, submitted, className }: { status: string; submitted?: boolean; className?: string }) {
+  const label = status === 'PENDING' && !submitted ? 'Not submitted yet' : (paymentLabel[status] ?? humanize(status));
+  return (
+    <Badge tone={statusTone[status] ?? 'slate'} dot className={className}>
+      {label}
+    </Badge>
+  );
+}
+
+export function paymentStatusLabel(status: string, submitted?: boolean) {
+  return status === 'PENDING' && !submitted ? 'Not submitted yet' : (paymentLabel[status] ?? humanize(status));
+}
+
 export function StatusBadge({ status, className }: { status: string; className?: string }) {
   return (
     <Badge tone={statusTone[status] ?? 'slate'} dot className={className}>

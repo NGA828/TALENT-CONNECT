@@ -1,6 +1,7 @@
 
+import { Transform } from 'class-transformer';
 import { IsBoolean, IsDateString, IsEnum, IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
-import { EventStatus, LicenceStatus, MediaType, ModerationStatus, PaymentStatus, Role, UserStatus } from '@prisma/client';
+import { EventStatus, LicenceStatus, MediaType, ModerationStatus, PaymentMethod, PaymentStatus, Role, UserStatus } from '@prisma/client';
 import { PaginationQuery } from '../../common/utils/pagination';
 import { EmptyToUndefined, Sanitize } from '../../common/utils/sanitize';
 
@@ -44,8 +45,13 @@ export class ListAdminEventsQuery extends PaginationQuery {
   @apply(...Q()) q?: string;
 }
 
+/** Admin → the Mobile Money fee transfers, filtered by state, network, promoter or transaction ID. */
 export class ListAdminPaymentsQuery extends PaginationQuery {
   @EmptyToUndefined() @IsOptional() @IsEnum(PaymentStatus) status?: PaymentStatus;
+  @EmptyToUndefined() @IsOptional() @IsEnum(PaymentMethod) method?: PaymentMethod;
+  @EmptyToUndefined() @Sanitize() @IsOptional() @IsString() @MaxLength(80) q?: string;
+  /** Only the transfers that are waiting for an administrator to confirm them. */
+  @Transform(({ value }) => value === true || value === 'true') @IsOptional() @IsBoolean() awaiting?: boolean;
 }
 
 export class ReportQuery {
