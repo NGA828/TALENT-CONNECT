@@ -11,6 +11,7 @@ import { Avatar } from '@/components/ui/avatar';
 import { QueryState, SkeletonRows } from '@/components/ui/feedback';
 import { StatusBadge } from '@/components/ui/badge';
 import { StarRating } from '@/components/ui/rating';
+import { WorkspaceBand } from '@/components/layout/workspace-band';
 import { RecentNotifications } from '@/features/notifications/recent-notifications';
 import { useAuth } from '@/features/auth/auth-context';
 import { DateBlock } from '@/features/events/event-ui';
@@ -30,22 +31,24 @@ export function TalentDashboardPage() {
         const nextSteps = d.completion.items.filter((i) => !i.done);
         return (
           <div className="space-y-6">
-            <Card className="flex flex-col gap-5 p-5 sm:flex-row sm:items-center sm:p-6">
-              <Avatar firstName={user?.firstName} lastName={user?.lastName} src={d.profile.avatarUrl} size={64} />
-              <div className="min-w-0 flex-1">
-                <p className="text-sm text-slate-500">{greeting()}</p>
-                <h1 className="font-display text-2xl font-extrabold tracking-tight text-slate-900">{d.profile.firstName}, here is your week</h1>
-                <p className="mt-1 text-sm text-slate-600">
-                  {d.pendingContracts.length > 0 ? `${d.pendingContracts.length} contract${d.pendingContracts.length > 1 ? 's' : ''} waiting for your answer.` : d.upcomingEventsCount > 0 ? `You are booked for ${d.upcomingEventsCount} upcoming event${d.upcomingEventsCount > 1 ? 's' : ''}.` : 'No pending actions. Browse events to find your next booking.'}
-                </p>
-              </div>
-              <div className="flex items-center gap-3 rounded-xl bg-slate-50 px-4 py-3">
-                <CompletionRing percent={d.completion.percent} size={56} />
-                <div className="text-sm"><p className="font-semibold text-slate-900">Profile strength</p>
-                  {nextSteps[0] ? <Link href="/talent/profile" className="text-accent-700 hover:underline">Next: {nextSteps[0].label.toLowerCase()}</Link> : <span className="text-slate-500">Complete</span>}
+            <WorkspaceBand label="Talent workspace">
+              <div className="mt-4 flex flex-col gap-5 sm:flex-row sm:items-center">
+                <Avatar firstName={user?.firstName} lastName={user?.lastName} src={d.profile.avatarUrl} size={64} />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm text-slate-600">{greeting()}</p>
+                  <h1 className="font-display text-2xl font-extrabold tracking-tight text-slate-900">{d.profile.firstName}, here is your week</h1>
+                  <p className="mt-1 text-sm text-slate-600">
+                    {d.pendingContracts.length > 0 ? `${d.pendingContracts.length} contract${d.pendingContracts.length > 1 ? 's' : ''} waiting for your answer.` : d.upcomingEventsCount > 0 ? `You are booked for ${d.upcomingEventsCount} upcoming event${d.upcomingEventsCount > 1 ? 's' : ''}.` : 'No pending actions. Browse events to find your next booking.'}
+                  </p>
+                </div>
+                <div className="flex items-center gap-3 rounded-xl bg-white/80 px-4 py-3">
+                  <CompletionRing percent={d.completion.percent} size={56} />
+                  <div className="text-sm"><p className="font-semibold text-slate-900">Profile strength</p>
+                    {nextSteps[0] ? <Link href="/talent/profile" className="text-accent-700 hover:underline">Next: {nextSteps[0].label.toLowerCase()}</Link> : <span className="text-slate-600">Complete</span>}
+                  </div>
                 </div>
               </div>
-            </Card>
+            </WorkspaceBand>
 
             <div className="grid grid-cols-[minmax(0,1fr)] gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
               <div className="space-y-6">

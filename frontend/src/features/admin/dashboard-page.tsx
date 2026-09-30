@@ -5,10 +5,11 @@ import { AlertTriangle } from 'lucide-react';
 import { useApi } from '@/lib/use-api';
 import { formatDate, formatMoney, humanize, timeAgo } from '@/lib/format';
 import type { AdminStats } from '@/lib/types';
-import { Card, CardHeader, PageHeader } from '@/components/ui/card';
+import { Card, CardHeader } from '@/components/ui/card';
 import { ButtonLink } from '@/components/ui/button';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { QueryState, SkeletonRows } from '@/components/ui/feedback';
+import { WorkspaceBand } from '@/components/layout/workspace-band';
 
 function Table({ title, data, unit }: { title: string; data: [string, number][]; unit?: (k: string) => string }) {
   return (
@@ -25,7 +26,7 @@ export function AdminDashboardPage() {
   const state = useApi<AdminStats>('/admin/stats', undefined, { pollMs: 60000 });
   return (
     <>
-      <PageHeader title="Overview" eyebrow="Admin console" description="What needs a decision, and how the platform is doing." />
+      <WorkspaceBand label="Admin console" title="Overview" description="What needs a decision, and how the platform is doing." />
       <QueryState state={state} skeleton={<SkeletonRows rows={6} />}>
         {(s) => {
           const attention = s.pendingVerification + s.portfolios.flagged;
