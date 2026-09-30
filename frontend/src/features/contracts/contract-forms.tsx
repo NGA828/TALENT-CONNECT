@@ -1,25 +1,25 @@
 'use client';
 
 import { useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { api, errorMessage } from '@/lib/api';
 import { applyServerErrors } from '@/lib/hooks';
 import { useToast } from '@/lib/toast';
+import { formatMoney } from '@/lib/format';
 import type { Contract } from '@/lib/types';
 import { Button } from '@/components/ui/button';
-import { Input, Select, Textarea } from '@/components/ui/form';
+import { Input, Textarea } from '@/components/ui/form';
 import { Alert } from '@/components/ui/feedback';
 import { Modal } from '@/components/ui/modal';
 import { StarInput } from '@/components/ui/rating';
 
-const CURRENCIES = ['XAF', 'USD', 'EUR', 'GBP', 'NGN', 'GHS', 'ZAR', 'KES'];
+/** Contracts on Talent Connect are always paid in Central African CFA francs (XAF). */
 
 const schema = z.object({
   terms: z.string().trim().min(20, 'Describe the contract terms in at least 20 characters.').max(6000, 'Keep the terms under 6,000 characters.'),
-  amount: z.string().refine((v) => v === '' || (!Number.isNaN(Number(v)) && Number(v) >= 0 && Number(v) <= 10_000_000), 'Enter a valid amount.'),
-  currency: z.string(),
+  amount: z.string().trim().regex(/^\d*$/, 'Enter the fee as a whole number of FCFA (no decimals or symbols).').refine((v) => v === '' || Number(v) <= 100_000_000, 'The fee cannot exceed 100,000,000 FCFA.'),
   reviewNotes: z.string().trim().max(1500).optional(),
 });
 type Values = z.infer<typeof schema>;
@@ -37,14 +37,16 @@ interface Props {
 export function ContractFormModal({ open, onClose, onSaved, create, existing }: Props) {
   const toast = useToast();
   const [formError, setFormError] = useState<string | null>(null);
-  const { register, handleSubmit, setError, reset, formState: { errors, isSubmitting } } = useForm<Values>({
+  const { register, handleSubmit, setError, reset, control, formState: { errors, isSubmitting } } = useForm<Values>({
     resolver: zodResolver(schema),
-    values: { terms: existing?.terms ?? '', amount: existing?.amount?.toString() ?? '', currency: existing?.currency ?? 'XAF', reviewNotes: existing?.reviewNotes ?? '' },
+    values: { terms: existing?.terms ?? '', amount: existing?.amount != null ? Math.round(existing.amount).toString() : '', reviewNotes: existing?.reviewNotes ?? '' },
   });
+  const amount = useWatch({ control, name: 'amount' });
+  const feePreview = amount && /^\d+$/.test(amount) ? formatMoney(Number(amount)) : null;
 
   const submit = handleSubmit(async (v) => {
     setFormError(null);
-    const body = { terms: v.terms, amount: v.amount === '' ? undefined : Number(v.amount), currency: v.currency, reviewNotes: v.reviewNotes || undefined };
+    const body = { terms: v.terms, amount: v.amount === '' ? undefined : Number(v.amount), currency: 'XAF', reviewNotes: v.reviewNotes || undefined };
     try {
       const saved = existing
         ? await api.patch<Contract>(`/contracts/${existing.id}`, { terms: body.terms, amount: body.amount, reviewNotes: body.reviewNotes })
@@ -75,12 +77,18 @@ export function ContractFormModal({ open, onClose, onSaved, create, existing }: 
       <form onSubmit={submit} noValidate className="space-y-4">
         {formError && <Alert tone="danger">{formError}</Alert>}
         <Textarea label="Terms" required rows={7} placeholder="Call time, duration, deliverables, overtime, cancellation policy, payment schedule…" error={errors.terms?.message} {...register('terms')} />
-        <div className="grid grid-cols-[minmax(0,1fr)] gap-4 sm:grid-cols-[1fr_140px]">
-          <Input label="Fee" type="number" inputMode="decimal" step="0.01" min="0" placeholder="1200" error={errors.amount?.message} {...register('amount')} />
-          <Select label="Currency" disabled={!!existing} hint={existing ? 'Fixed once issued' : undefined} {...register('currency')}>
-            {CURRENCIES.map((c) => <option key={c}>{c}</option>)}
-          </Select>
-        </div>
+        <Input
+          label="Fee"
+          type="number"
+          inputMode="numeric"
+          step={1000}
+          min={0}
+          placeholder="e.g. 350000"
+          suffix="FCFA"
+          hint={feePreview ? `Talent will see: ${feePreview}` : 'Central African CFA francs (XAF), whole amounts only. Leave blank to agree the fee later.'}
+          error={errors.amount?.message}
+          {...register('amount')}
+        />
         <Textarea label="Notes for the talent (optional)" rows={3} error={errors.reviewNotes?.message} {...register('reviewNotes')} />
         <button type="submit" className="hidden" />
       </form>

@@ -1,3 +1,4 @@
+import { formatMoney } from '../common/utils/money';
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { LicenceStatus, ModerationStatus, NotificationType, PaymentStatus, Prisma, ReviewAction, Role, UserStatus } from '@prisma/client';
 import os from 'node:os';
@@ -129,7 +130,7 @@ export class AdminService {
       ...users.map((u) => ({ kind: 'user', text: `${u.firstName} ${u.lastName} joined as ${u.role.toLowerCase()}`, at: u.createdAt })),
       ...events.map((e) => ({ kind: 'event', text: `${e.promoter.agencyName} created "${e.title}" (${e.status.toLowerCase()})`, at: e.createdAt })),
       ...contracts.map((c) => ({ kind: 'contract', text: `Contract for "${c.event.title}" is ${c.status.toLowerCase()}`, at: c.createdAt })),
-      ...payments.map((p) => ({ kind: 'payment', text: `${p.promoter.agencyName}: ${p.currency} ${p.amount.toFixed(2)} payment ${p.status.toLowerCase()}`, at: p.createdAt })),
+      ...payments.map((p) => ({ kind: 'payment', text: `${p.promoter.agencyName}: ${formatMoney(p.amount, p.currency)} payment ${p.status.toLowerCase()}`, at: p.createdAt })),
       ...reviews.map((r) => ({ kind: 'verification', text: `${r.promoter.agencyName} licence ${r.action.toLowerCase()}`, at: r.createdAt })),
     ];
     return feed.sort((a, b) => +b.at - +a.at).slice(0, 12);

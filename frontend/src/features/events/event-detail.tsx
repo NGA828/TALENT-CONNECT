@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, BadgeCheck, Ban, CheckCircle2, EyeOff, FilePlus2, Globe, MapPin, MessageSquare, Pencil, Play, Rocket, Star, UserRoundCheck } from 'lucide-react';
+import { ArrowLeft, BadgeCheck, Ban, CheckCircle2, EyeOff, FilePlus2, Globe, ImagePlus, MapPin, MessageSquare, Pencil, Play, Rocket, Star, UserRoundCheck } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useApi } from '@/lib/use-api';
 import { useAction } from '@/lib/hooks';
@@ -18,6 +18,7 @@ import { ConfirmDialog, Modal } from '@/components/ui/modal';
 import { Textarea } from '@/components/ui/form';
 import { ContractFormModal } from '@/features/contracts/contract-forms';
 import { DateBlock, EventMeta } from './event-ui';
+import { EventGallery } from './event-images';
 
 export function EventDetail({ id, role }: { id: string; role: 'TALENT' | 'PROMOTER' }) {
   const state = useApi<EventItem>(`/events/${id}`);
@@ -32,10 +33,18 @@ export function EventDetail({ id, role }: { id: string; role: 'TALENT' | 'PROMOT
   );
 }
 
-function Header({ event }: { event: EventItem }) {
+function Header({ event, canAddPhotos }: { event: EventItem; canAddPhotos?: boolean }) {
   return (
-    <Card className="p-6">
-      <div className="flex flex-wrap items-start gap-5">
+    <Card className="overflow-hidden">
+      {event.images.length > 0 ? (
+        <EventGallery images={event.images} title={event.title} />
+      ) : canAddPhotos ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-dashed border-slate-200 bg-slate-50 px-6 py-4">
+          <p className="inline-flex items-center gap-2 text-sm text-slate-600"><ImagePlus className="size-4 text-slate-400" aria-hidden /> Events with photos get noticed by more talent.</p>
+          <ButtonLink href={`/promoter/events/${event.id}/edit`} variant="outline" size="sm">Add photos</ButtonLink>
+        </div>
+      ) : null}
+      <div className="flex flex-wrap items-start gap-5 p-6">
         <DateBlock iso={event.eventDate} className="size-20" />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
@@ -172,7 +181,7 @@ function PromoterView({ event: e, reload }: { event: EventItem; reload: () => Pr
 
   return (
     <div className="space-y-6">
-      <Header event={e} />
+      <Header event={e} canAddPhotos={e.status === 'DRAFT' || e.status === 'PUBLISHED' || e.status === 'ONGOING'} />
       <Card className="p-4">
         <div className="flex flex-wrap items-center gap-2">
           <span className="mr-2 text-sm font-medium text-slate-700">Manage event</span>

@@ -1,0 +1,16 @@
+{
+  "name": "talent-connect-postman",
+  "private": true,
+  "description": "Postman collection tooling: build the collection, run it with newman and render screenshots.",
+  "scripts": {
+    "build": "node scripts/build-collection.js",
+    "test": "newman run TalentConnect.postman_collection.json -e TalentConnect.local.postman_environment.json --working-dir .. -r cli,json --reporter-json-export results/newman-run.json",
+    "screenshots": "node scripts/render-screenshots.mjs results/newman-run.json screenshots"
+  },
+  "devDependencies": {
+    "@fontsource/ibm-plex-mono": "^5.3.0",
+    "@fontsource/inter": "^5.3.0",
+    "newman": "^6.2.2",
+    "playwright-core": "^1.63.0"
+  }
+}

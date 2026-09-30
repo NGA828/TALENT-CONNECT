@@ -15,7 +15,7 @@ import { Pagination } from '@/components/ui/pagination';
 import { Tabs } from '@/components/ui/tabs';
 import { StatusBadge } from '@/components/ui/badge';
 import { ConfirmDialog } from '@/components/ui/modal';
-import { DateBlock, EventMeta } from './event-ui';
+import { EventMeta, EventThumb } from './event-ui';
 
 type List = Paginated<EventItem> & { counts: Partial<Record<EventStatus, number>> };
 type Filter = 'ALL' | EventStatus;
@@ -70,7 +70,7 @@ export function PromoterEventsPage() {
               <div className="space-y-3">
                 {data.items.map((e) => (
                   <article key={e.id} className="flex flex-wrap items-center gap-4 rounded-card border border-slate-200 bg-white p-4 shadow-xs sm:flex-nowrap sm:p-5">
-                    <DateBlock iso={e.eventDate} />
+                    <Link href={`/promoter/events/${e.id}`} tabIndex={-1} aria-hidden><EventThumb event={e} /></Link>
                     <div className="min-w-0 flex-1 basis-64">
                       <div className="flex flex-wrap items-center gap-2">
                         <h3 className="font-display text-base font-bold text-slate-900"><Link href={`/promoter/events/${e.id}`} className="hover:text-accent-700 hover:underline">{e.title}</Link></h3>

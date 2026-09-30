@@ -4,6 +4,11 @@ import { ContractStatus } from '@prisma/client';
 import { PaginationQuery } from '../../common/utils/pagination';
 import { EmptyToUndefined, Sanitize } from '../../common/utils/sanitize';
 
+/** FCFA has no minor unit, so fees are whole numbers. */
+const MAX_FEE = 100_000_000;
+const FEE_MESSAGE = 'Enter the fee as a whole number of FCFA (no decimals).';
+const MAX_FEE_MESSAGE = 'The fee cannot exceed 100,000,000 FCFA.';
+
 export class CreateContractDto {
   @IsString() talentId: string;
   @IsString() eventId: string;
@@ -11,10 +16,11 @@ export class CreateContractDto {
   @Sanitize() @IsString() @MinLength(20, { message: 'Describe the contract terms in at least 20 characters.' }) @MaxLength(6000)
   terms: string;
 
-  @EmptyToUndefined() @IsOptional() @Type(() => Number) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) @Max(10_000_000)
+  @EmptyToUndefined() @IsOptional() @Type(() => Number) @IsNumber({ maxDecimalPlaces: 0 }, { message: FEE_MESSAGE }) @Min(0) @Max(MAX_FEE, { message: MAX_FEE_MESSAGE })
   amount?: number;
 
-  @EmptyToUndefined() @IsOptional() @IsIn(['USD', 'EUR', 'GBP', 'XAF', 'NGN', 'GHS', 'ZAR', 'KES'])
+  /** Contracts are always in Central African CFA francs; the field is accepted for API compatibility. */
+  @EmptyToUndefined() @IsOptional() @IsIn(['XAF'], { message: 'Contracts are paid in Central African CFA francs (XAF).' })
   currency?: string;
 
   @EmptyToUndefined() @Sanitize() @IsOptional() @IsString() @MaxLength(1500)
@@ -28,7 +34,7 @@ export class UpdateContractDto {
   @EmptyToUndefined() @Sanitize() @IsOptional() @IsString() @MinLength(20) @MaxLength(6000)
   terms?: string;
 
-  @IsOptional() @Type(() => Number) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) @Max(10_000_000)
+  @IsOptional() @Type(() => Number) @IsNumber({ maxDecimalPlaces: 0 }, { message: FEE_MESSAGE }) @Min(0) @Max(MAX_FEE, { message: MAX_FEE_MESSAGE })
   amount?: number;
 
   @Sanitize() @IsOptional() @IsString() @MaxLength(1500)

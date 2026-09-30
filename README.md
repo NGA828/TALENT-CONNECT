@@ -11,7 +11,7 @@ The repository contains two separate applications:
 
 The frontend never touches the database. The browser only talks to the Next.js origin; Next proxies `/api/*` and `/uploads/*` to the NestJS server (see `frontend/next.config.ts`), so no backend URL, secret or CORS setup is exposed to client code.
 
-Related documents: [`API_DOCUMENTATION.md`](API_DOCUMENTATION.md) · [`DESIGN_RESEARCH.md`](DESIGN_RESEARCH.md)
+Related documents: [`API_DOCUMENTATION.md`](API_DOCUMENTATION.md) · [`DESIGN_RESEARCH.md`](DESIGN_RESEARCH.md) · [Postman collection & API test screenshots](postman/README.md)
 
 ---
 
@@ -90,7 +90,7 @@ cd frontend && npm run build && npm run start
 
 **Talent** — dashboard; profile with photo, skills and completion checklist; portfolio CRUD with image / video / audio / PDF uploads, publish-hide toggle and moderation notices; event browsing with filters, enrol / withdraw; contracts (read the terms, accept or decline while pending); ratings; messages; notifications; AI writing assistant.
 
-**Promoter** — dashboard; agency profile; licence submission with document upload; licence-fee payment (sandbox); event create / edit / publish / unpublish / start / complete / cancel; talent search with portfolio previews; issue, amend, cancel and complete contracts, attach a signed PDF, rate talent after completion; messages; notifications.
+**Promoter** — dashboard; agency profile; licence submission with document upload; licence-fee payment (sandbox); event create / edit / publish / unpublish / start / complete / cancel with up to 8 event photos (choose the cover, remove photos); photos appear on event cards, the event gallery, dashboards and the landing page; talent search with portfolio previews; issue, amend, cancel and complete contracts, attach a signed PDF, rate talent after completion; messages; notifications.
 
 **Admin** — overview with a verification queue; user list with suspend / deactivate / reactivate; promoter verification (approve, or reject with a reason); portfolio moderation (flag / remove / restore); reports (users, events, contracts, payments, verifications, moderation) with CSV export; monitoring (system health, 14-day activity, pipelines).
 
@@ -119,7 +119,7 @@ common/{decorators,guards,filters,utils}   prisma/
 
 ### Database (`backend/prisma/schema.prisma`)
 
-Entities: `User`, `Talent`, `Promoter`, `Portfolio`, `Event`, `TalentEvent`, `Contract`, `Payment`, `Message`, `Notification`, `Rating`, plus two supporting tables — `LicenceReview` (audit trail of admin decisions) and `AiMessage` (assistant history).
+Entities: `User`, `Talent`, `Promoter`, `Portfolio`, `Event`, `EventImage`, `TalentEvent`, `Contract`, `Payment`, `Message`, `Notification`, `Rating`, plus two supporting tables — `LicenceReview` (audit trail of admin decisions) and `AiMessage` (assistant history).
 
 ### Frontend (`frontend/src`)
 
@@ -145,6 +145,8 @@ cd backend && npm test          # 58 API tests against a throw-away SQLite datab
 cd backend && npm run lint && npm run build
 cd frontend && npm run lint && npm run typecheck && npm run build
 ```
+
+**Postman / newman:** [`postman/`](postman/README.md) contains a 113-request Postman collection (426 assertions) covering every module, and [screenshots of each request](postman/screenshots/README.md). Run it with `cd postman && npm install && npm test`.
 
 The backend suite (`node:test` + `expect`, real Nest app, real SQLite) covers both valid and invalid paths: registration validation and duplicate emails, login failures, suspended users, role and ownership violations (403), unknown resources (404), state conflicts (409), validation errors (422), upload type and size limits, event and contract state machines, licence → payment → admin verification, declined cards, messaging, notifications, AI, admin operations and the error envelope (no stack traces).
 
@@ -176,8 +178,12 @@ If you have normal network access you can remove the adapter and the `engineType
 
 ### Cameroon defaults
 
-New contracts and sandbox licence payments default to Central African CFA francs
-(`XAF`), displayed as `FCFA` without decimal places. The illustrative platform
+Contracts and sandbox licence payments use Central African CFA francs (`XAF`),
+displayed as `FCFA` without decimal places. Contract fees are whole FCFA amounts
+(the API rejects other currencies and decimals), event budgets are entered as a
+minimum/maximum in FCFA (budgets mentioning `$`, `€`, `USD`, `EUR` … are rejected),
+and notification texts read e.g. "30,000 FCFA". Rows created before this change
+keep the currency they were stored with. The illustrative platform
 licence fee is **30,000 FCFA**, configurable through `LICENCE_FEE_AMOUNT`; it is
 not an official government fee. Set `PAYMENT_CURRENCY=XAF` in an existing backend
 `.env` (new installations inherit this from `.env.example`). Payments remain

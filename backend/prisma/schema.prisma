@@ -220,9 +220,26 @@ model Event {
   promoter    Promoter      @relation(fields: [promoterId], references: [id], onDelete: Cascade)
   enrollments TalentEvent[]
   contracts   Contract[]
+  images      EventImage[]
 
   @@index([status, eventDate])
   @@index([promoterId])
+}
+
+/// Photos attached to an event. The image with the lowest position is the cover.
+model EventImage {
+  id        String   @id @default(cuid())
+  eventId   String
+  url       String
+  fileName  String?
+  mimeType  String?
+  fileSize  Int?
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId, position])
 }
 
 model TalentEvent {
