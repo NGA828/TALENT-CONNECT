@@ -5,11 +5,12 @@ import { ArrowRight, CalendarPlus, ShieldAlert } from 'lucide-react';
 import { useApi } from '@/lib/use-api';
 import { formatDate, formatMoney, timeAgo } from '@/lib/format';
 import type { EventStatus, PromoterDashboard } from '@/lib/types';
-import { Card, CardHeader, PageHeader } from '@/components/ui/card';
+import { Card, CardHeader } from '@/components/ui/card';
 import { ButtonLink } from '@/components/ui/button';
 import { Avatar } from '@/components/ui/avatar';
 import { Alert, QueryState, SkeletonRows } from '@/components/ui/feedback';
 import { StatusBadge } from '@/components/ui/badge';
+import { WorkspaceBand } from '@/components/layout/workspace-band';
 import { RecentNotifications } from '@/features/notifications/recent-notifications';
 import { humanize } from '@/lib/format';
 
@@ -25,7 +26,7 @@ export function PromoterDashboardPage() {
   const state = useApi<PromoterDashboard>('/promoters/me/dashboard', undefined, { pollMs: 60000 });
   return (
     <>
-      <PageHeader title="Operations overview" eyebrow="Promoter console" description="Events, applicants and contracts across your agency." actions={<ButtonLink href="/promoter/events/create"><CalendarPlus className="size-4" /> New event</ButtonLink>} />
+      <WorkspaceBand label="Promoter studio" title="Operations overview" description="Events, applicants and contracts across your agency." actions={<ButtonLink href="/promoter/events/create"><CalendarPlus className="size-4" /> New event</ButtonLink>} />
       <QueryState state={state} skeleton={<SkeletonRows rows={6} />}>
         {(d) => {
           const total = d.events.total || 1;

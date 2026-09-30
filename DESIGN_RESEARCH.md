@@ -8,10 +8,11 @@ Before designing each major screen I ran screen-specific searches on Dribbble (a
 
 - **One system:** shared tokens in `frontend/src/app/globals.css`, fonts Inter (UI) and Plus Jakarta Sans (display), one radius scale, one elevation level (hairline border, almost no shadow), one set of primitives in `components/ui`.
 - **Restraint:** flat colour, no decorative gradients, no illustration clutter. Real photography appears only on the landing page and in portfolio content.
-- **Three role workspaces, one family.** Accent and navigation pattern differentiate roles; components are identical.
+- **Three role workspaces, one family.** Accent, canvas tint and navigation pattern differentiate roles; components are identical.
   - Talent: light sidebar + indigo accent (personal, friendly).
   - Promoter: dark ink sidebar + teal accent (operational console).
   - Admin: dense slate top-navigation + amber accent (supervision, tables first).
+  - Each workspace also tints its own canvas and header through the `--surface`, `--tint` and `--tint-border` tokens, so the three dashboards read as different rooms at a glance instead of identical white cards on grey. Each one opens with the shared `WorkspaceBand`, which names the role in writing so the tint is never the only signal.
 - **Status is always a badge** (dot + label) with the same colour mapping for contracts, licences, payments, events and moderation.
 - **States:** every API-driven view has skeleton loading, an explanatory empty state and an error state with retry.
 - **Accessibility:** native `<dialog>` modals (focus trap, Esc), visible focus rings, labelled controls, `aria-live` for chat and toasts, colour never the only signal.

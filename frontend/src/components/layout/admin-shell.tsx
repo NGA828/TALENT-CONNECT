@@ -24,8 +24,9 @@ export function AdminShell({ children }: { children: ReactNode }) {
   useEffect(() => setOpen(false), [pathname]);
 
   return (
-    <div className="theme-admin min-h-screen bg-slate-100 text-[15px]">
+    <div className="theme-admin min-h-screen bg-surface text-[15px]">
       <header className="sticky top-0 z-30 border-b border-slate-800 bg-slate-900 text-white">
+        <div className="h-1 w-full bg-accent-500" aria-hidden />
         <div className="mx-auto flex h-14 max-w-[1400px] items-center gap-6 px-4 sm:px-6">
           <Brand href="/admin/dashboard" tone="dark" className="text-base" />
           <span className="hidden rounded bg-accent-500/20 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-accent-300 sm:inline">Admin console</span>

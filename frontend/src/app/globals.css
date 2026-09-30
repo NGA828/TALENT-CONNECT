@@ -15,6 +15,13 @@
   --color-accent-600: var(--accent-600);
   --color-accent-700: var(--accent-700);
   --color-accent-800: var(--accent-800);
+  /* Per-role surface tokens. Each workspace tints its own canvas, so the three
+     dashboards read as different rooms at a glance even though the components
+     are shared. Swap these per theme, never per component. */
+  --color-surface: var(--surface);
+  --color-surface-soft: var(--surface-soft);
+  --color-tint: var(--tint);
+  --color-tint-border: var(--tint-border);
   --radius-card: 14px;
 }
 
@@ -29,6 +36,11 @@
   --accent-600: #4f46e5;
   --accent-700: #4338ca;
   --accent-800: #3730a3;
+  /* Indigo-tinted canvas. */
+  --surface: #f2f4fe;
+  --surface-soft: #e9ecfc;
+  --tint: #eef2ff;
+  --tint-border: #dbe1fb;
 }
 .theme-promoter {
   --accent-50: #f0fdfa;
@@ -39,6 +51,11 @@
   --accent-600: #0d9488;
   --accent-700: #0f766e;
   --accent-800: #115e59;
+  /* Teal-tinted canvas. */
+  --surface: #eef8f6;
+  --surface-soft: #e2f2ef;
+  --tint: #f0fdfa;
+  --tint-border: #d2ece7;
 }
 .theme-admin {
   --accent-50: #fffbeb;
@@ -49,6 +66,11 @@
   --accent-600: #d97706;
   --accent-700: #b45309;
   --accent-800: #92400e;
+  /* Amber-tinted canvas, one step deeper so the console stays dense. */
+  --surface: #f6f2e9;
+  --surface-soft: #efe9dc;
+  --tint: #fffbeb;
+  --tint-border: #f0e4c9;
 }
 
 html {
