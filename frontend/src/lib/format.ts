@@ -1,25 +1,26 @@
 export function formatDate(value?: string | Date | null, opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short', year: 'numeric' }) {
   if (!value) return '—';
-  return new Intl.DateTimeFormat('en-GB', opts).format(new Date(value));
+  return new Intl.DateTimeFormat('en-CM', { ...opts, timeZone: 'Africa/Douala' }).format(new Date(value));
 }
 
 export function formatDateTime(value?: string | Date | null) {
   if (!value) return '—';
-  return new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(value));
+  return new Intl.DateTimeFormat('en-CM', { timeZone: 'Africa/Douala', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(value));
 }
 
 export function formatTime(value?: string | Date | null) {
   if (!value) return '';
-  return new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit' }).format(new Date(value));
+  return new Intl.DateTimeFormat('en-CM', { timeZone: 'Africa/Douala', hour: '2-digit', minute: '2-digit' }).format(new Date(value));
 }
 
-export function formatMoney(amount?: number | null, currency = 'USD') {
+export function formatMoney(amount?: number | null, currency = 'XAF') {
   if (amount === null || amount === undefined) return '—';
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: amount % 1 === 0 ? 0 : 2 }).format(amount);
+  if (currency === 'XAF') return `${new Intl.NumberFormat('en-CM', { maximumFractionDigits: 0 }).format(amount)} FCFA`;
+  return new Intl.NumberFormat('en-CM', { style: 'currency', currency, maximumFractionDigits: amount % 1 === 0 ? 0 : 2 }).format(amount);
 }
 
 export function formatNumber(n?: number | null) {
-  return new Intl.NumberFormat('en-US').format(n ?? 0);
+  return new Intl.NumberFormat('en-CM').format(n ?? 0);
 }
 
 export function formatBytes(bytes?: number | null) {
@@ -56,7 +57,6 @@ export function humanize(value: string) {
 /** Value for <input type="datetime-local"> from an ISO string. */
 export function toLocalInput(iso?: string | null) {
   if (!iso) return '';
-  const d = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  // Cameroon is UTC+01:00 year-round, independent of the browser timezone.
+  return new Date(new Date(iso).getTime() + 60 * 60 * 1000).toISOString().slice(0, 16);
 }

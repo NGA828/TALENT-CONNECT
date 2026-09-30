@@ -132,7 +132,7 @@ export class ContractsService {
         eventId: dto.eventId,
         terms: dto.terms,
         amount: dto.amount,
-        currency: dto.currency ?? 'USD',
+        currency: dto.currency ?? 'XAF',
         reviewNotes: dto.reviewNotes,
         contractDate: dto.contractDate ? new Date(dto.contractDate) : new Date(),
       },

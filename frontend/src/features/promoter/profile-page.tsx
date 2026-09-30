@@ -71,7 +71,7 @@ function Form({ p, onSaved }: { p: PromoterProfile; onSaved: () => void }) {
               <Input label="Agency name" required error={errors.agencyName?.message} {...register('agencyName')} />
               <Textarea label="About the agency" rows={5} placeholder="What kind of events do you produce and what do you look for in talent?" error={errors.agencyDescription?.message} {...register('agencyDescription')} />
               <div className="grid grid-cols-[minmax(0,1fr)] gap-4 sm:grid-cols-2">
-                <Input label="Location" placeholder="City, country" error={errors.location?.message} {...register('location')} />
+                <Input label="Location" placeholder="Douala, Cameroon" error={errors.location?.message} {...register('location')} />
                 <Input label="Website" placeholder="https://" error={errors.website?.message} {...register('website')} />
               </div>
               <div className="grid grid-cols-[minmax(0,1fr)] gap-4 sm:grid-cols-2">

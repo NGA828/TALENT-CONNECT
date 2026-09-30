@@ -17,7 +17,7 @@ export class PublicController {
   /** Static lists used by registration / filter forms. */
   @Get('meta')
   meta() {
-    return { specializations: SPECIALIZATIONS, genders: GENDERS, eventCategories: EVENT_CATEGORIES, licenceFee: Number(this.config.get('LICENCE_FEE_AMOUNT') ?? 49), currency: this.config.get('PAYMENT_CURRENCY') ?? 'USD' };
+    return { specializations: SPECIALIZATIONS, genders: GENDERS, eventCategories: EVENT_CATEGORIES, licenceFee: Number(this.config.get('LICENCE_FEE_AMOUNT') ?? 30000), currency: this.config.get('PAYMENT_CURRENCY') ?? 'XAF' };
   }
 
   /** Data for the public landing page – aggregate numbers and a safe subset of public profiles/events. */

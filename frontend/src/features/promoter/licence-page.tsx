@@ -152,7 +152,7 @@ function LicenceForm({ p, editable, onSaved }: { p: PromoterProfile; editable: b
           <fieldset disabled={!editable} className="space-y-4">
             <div className="grid grid-cols-[minmax(0,1fr)] gap-4 sm:grid-cols-2">
               <Input label="Licence number" required error={errors.licenceNumber?.message} {...register('licenceNumber')} />
-              <Input label="Issuing authority" required placeholder="e.g. NYC Department of Consumer Affairs" error={errors.licenceAuthority?.message} {...register('licenceAuthority')} />
+              <Input label="Issuing authority" required placeholder="Authority shown on your Cameroon business licence" error={errors.licenceAuthority?.message} {...register('licenceAuthority')} />
             </div>
             <Input label="Expiry date" type="date" required error={errors.licenceExpiry?.message} {...register('licenceExpiry')} />
             <Textarea label="Additional information" rows={3} placeholder="Coverage area, licence category or anything the reviewer should know." error={errors.licenceInfo?.message} {...register('licenceInfo')} />

@@ -172,3 +172,23 @@ If you have normal network access you can remove the adapter and the `engineType
 - Uploads use the local disk; swap `LocalStorageProvider` for S3 / Cloudinary before deploying to multiple instances.
 - Email delivery is not implemented; notifications are in-app only.
 - Contract terms are read-only for talent by design; talent can accept or decline a pending contract but cannot negotiate inside the app (use messages).
+
+
+### Cameroon defaults
+
+New contracts and sandbox licence payments default to Central African CFA francs
+(`XAF`), displayed as `FCFA` without decimal places. The illustrative platform
+licence fee is **30,000 FCFA**, configurable through `LICENCE_FEE_AMOUNT`; it is
+not an official government fee. Set `PAYMENT_CURRENCY=XAF` in an existing backend
+`.env` (new installations inherit this from `.env.example`). Payments remain
+sandbox-only; no live mobile-money integration is implied.
+
+Event display and entry use `Africa/Douala` (UTC+1). Demo profiles and events use
+Cameroon locations, +237 contact examples, and English/French hosting examples.
+Demo licence numbers and authorities are fictional, not regulatory guidance.
+Login credentials are unchanged.
+
+Run `cd backend && npm run prisma:migrate && npm run prisma:generate` to apply
+the new database defaults. Existing contract/payment amounts and currencies are
+preserved. The revised seed applies to fresh demo databases; **do not reseed a
+production database** because the seed deletes existing data.
