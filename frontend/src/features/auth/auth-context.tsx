@@ -8,6 +8,8 @@ interface AuthContextValue {
   user: AuthUser | null;
   /** True until the stored token (if any) has been checked against the API. */
   loading: boolean;
+  /** Set when a stored session could not be verified because the server was unreachable (not because it was rejected). */
+  sessionError: string | null;
   login: (email: string, password: string) => Promise<AuthUser>;
   register: (role: 'talent' | 'promoter', payload: Record<string, unknown>) => Promise<AuthUser>;
   logout: () => Promise<void>;
@@ -23,18 +25,24 @@ export function homeFor(role: Role) {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [sessionError, setSessionError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     if (!tokenStore.get()) {
       setUser(null);
+      setSessionError(null);
       return;
     }
     try {
       setUser(await api.get<AuthUser>('/auth/me'));
+      setSessionError(null);
     } catch (err) {
       if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
         tokenStore.clear();
         setUser(null);
+        setSessionError(null);
+      } else {
+        setSessionError(err instanceof ApiError ? err.message : 'We could not verify your session.');
       }
     }
   }, []);
@@ -53,6 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const applySession = useCallback((res: AuthResponse) => {
     tokenStore.set(res.accessToken);
+    setSessionError(null);
     setUser(res.user);
     return res.user;
   }, []);
@@ -77,7 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }, []);
 
-  const value = useMemo(() => ({ user, loading, login, register, logout, refresh }), [user, loading, login, register, logout, refresh]);
+  const value = useMemo(() => ({ user, loading, sessionError, login, register, logout, refresh }), [user, loading, sessionError, login, register, logout, refresh]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

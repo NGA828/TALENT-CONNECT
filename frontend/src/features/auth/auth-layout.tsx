@@ -36,8 +36,8 @@ function toSlides(slides: AuthSlide[], withCaption: boolean): Slide[] {
     alt: s.alt,
     caption: withCaption ? (
       <>
-        <p className="max-w-md text-xl font-bold leading-snug sm:text-2xl">{s.text}</p>
-        <p className="mt-2 text-sm text-slate-300">{s.by}</p>
+        <p className="text-base font-bold leading-snug">{s.by}</p>
+        <p className="mt-1 max-w-xs text-sm text-slate-200">{s.text}</p>
       </>
     ) : undefined,
   }));
@@ -57,7 +57,7 @@ export function AuthLayout({ title, subtitle, children, slides = LOGIN_SLIDES }:
           </div>
         </div>
       </div>
-      <Slideshow className="sticky top-0 hidden h-screen lg:block" slides={toSlides(slides, true)} label="Talent Connect highlights" scrimClassName="bg-gradient-to-t from-ink/85 via-ink/30 to-ink/10" interval={6000} />
+      <Slideshow className="sticky top-0 hidden h-screen lg:block" slides={toSlides(slides, true)} label="Talent Connect highlights" scrimClassName="bg-gradient-to-t from-ink/70 via-transparent to-transparent" thumbnails interval={5000} />
     </div>
   );
 }

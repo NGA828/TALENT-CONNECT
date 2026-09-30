@@ -87,7 +87,7 @@ function HeroCaption({ title, text }: { title: string; text: string }) {
 function Hero() {
   return (
     <section>
-      <Slideshow slides={heroSlides} label="Events and talent on Talent Connect" interval={6500} scrimClassName="bg-gradient-to-r from-ink/90 via-ink/60 to-ink/15" className="min-h-[34rem] lg:min-h-[40rem]">
+      <Slideshow slides={heroSlides} label="Events and talent on Talent Connect" thumbnails interval={5500} scrimClassName="bg-gradient-to-r from-ink/90 via-ink/60 to-ink/15" className="min-h-[34rem] lg:min-h-[40rem]">
         <div className="mx-auto flex min-h-[34rem] max-w-7xl flex-col justify-center px-4 pb-24 pt-14 sm:px-6 lg:min-h-[40rem] lg:pb-28">
           <p className="inline-flex w-fit items-center gap-2 rounded-full bg-white/95 px-3 py-1 text-xs font-semibold text-slate-800">
             <BadgeCheck className="size-4 text-emerald-600" aria-hidden /> Every promoter is licence-checked before they can book

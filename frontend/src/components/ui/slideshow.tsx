@@ -22,6 +22,8 @@ interface Props {
   /** `full` = arrows, pause and dots; `dots` = dots only (compact banners). */
   controls?: 'full' | 'dots';
   label: string;
+  /** Show a clickable thumbnail strip of every image. */
+  thumbnails?: boolean;
   /** Content rendered above the slides (e.g. a hero headline). */
   children?: ReactNode;
 }
@@ -30,7 +32,7 @@ interface Props {
  * Cross-fading image slideshow. Advances automatically, pauses on hover/focus and via the pause button,
  * does not autoplay for visitors who prefer reduced motion, and is fully keyboard operable.
  */
-export function Slideshow({ slides, interval = 6000, className, scrimClassName = 'bg-ink/45', showCaption = true, controls = 'full', label, children }: Props) {
+export function Slideshow({ slides, interval = 6000, className, scrimClassName = 'bg-ink/45', showCaption = true, controls = 'full', label, thumbnails = false, children }: Props) {
   const [index, setIndex] = useState(0);
   const [playing, setPlaying] = useState(true);
   const [hovered, setHovered] = useState(false);
@@ -68,7 +70,7 @@ export function Slideshow({ slides, interval = 6000, className, scrimClassName =
           <img
             src={s.src}
             alt={i === index ? s.alt : ''}
-            loading={i === 0 ? 'eager' : 'lazy'}
+            loading="eager"
             decoding="async"
             className={cn('size-full object-cover transition-[opacity,transform] duration-1000 ease-out', i === index ? 'scale-100 opacity-100' : 'scale-105 opacity-0')}
           />
@@ -77,6 +79,16 @@ export function Slideshow({ slides, interval = 6000, className, scrimClassName =
       <div className={cn('pointer-events-none absolute inset-0 -z-10', scrimClassName)} aria-hidden />
 
       {children}
+
+      {count > 1 && thumbnails && (
+        <div className="absolute inset-x-0 bottom-32 z-20 hidden justify-center gap-2 px-6 sm:flex">
+          {slides.map((s, i) => (
+            <button key={s.src} type="button" onClick={() => go(i)} aria-label={`Show image ${i + 1}: ${s.alt}`} aria-current={i === index} className={cn('h-14 w-20 overflow-hidden rounded-lg border-2 transition', i === index ? 'border-white opacity-100' : 'border-transparent opacity-60 hover:opacity-100')}>
+              <img src={s.src} alt="" className="size-full object-cover" />
+            </button>
+          ))}
+        </div>
+      )}
 
       {count > 1 && (
         <div className={cn('absolute inset-x-0 bottom-0 z-20 flex items-end justify-between gap-4 p-4 sm:p-6', controls === 'dots' && 'justify-center')}>

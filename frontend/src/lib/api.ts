@@ -17,23 +17,57 @@ export class ApiError extends Error {
 
 const TOKEN_KEY = 'tc.token';
 
+/**
+ * The session token lives in localStorage. Some embedded or privacy-restricted browsers block or partition
+ * storage, so we fall back to sessionStorage and finally to memory; sign-in then still works for the
+ * current page session instead of silently bouncing the user back to the login screen.
+ */
+let memoryToken: string | null = null;
+
+function storages(): Storage[] {
+  const out: Storage[] = [];
+  for (const name of ['localStorage', 'sessionStorage'] as const) {
+    try {
+      out.push(window[name]);
+    } catch {
+      /* storage blocked by the browser */
+    }
+  }
+  return out;
+}
+
 export const tokenStore = {
   get(): string | null {
     if (typeof window === 'undefined') return null;
-    try {
-      return window.localStorage.getItem(TOKEN_KEY);
-    } catch {
-      return null;
+    for (const store of storages()) {
+      try {
+        const value = store.getItem(TOKEN_KEY);
+        if (value) return value;
+      } catch {
+        /* try the next store */
+      }
     }
+    return memoryToken;
   },
   set(token: string) {
-    window.localStorage.setItem(TOKEN_KEY, token);
+    memoryToken = token;
+    for (const store of storages()) {
+      try {
+        store.setItem(TOKEN_KEY, token);
+        return;
+      } catch {
+        /* try the next store */
+      }
+    }
   },
   clear() {
-    try {
-      window.localStorage.removeItem(TOKEN_KEY);
-    } catch {
-      /* storage unavailable */
+    memoryToken = null;
+    for (const store of storages()) {
+      try {
+        store.removeItem(TOKEN_KEY);
+      } catch {
+        /* nothing to clear */
+      }
     }
   },
 };

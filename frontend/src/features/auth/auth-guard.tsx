@@ -6,18 +6,31 @@ import { usePathname, useRouter } from 'next/navigation';
 import { ShieldAlert } from 'lucide-react';
 import type { Role } from '@/lib/types';
 import { Spinner } from '@/components/ui/feedback';
-import { ButtonLink } from '@/components/ui/button';
+import { Button, ButtonLink } from '@/components/ui/button';
 import { homeFor, useAuth } from './auth-context';
 
 /** Client-side route guard. The API enforces the same rules – this only avoids showing screens a user cannot use. */
 export function AuthGuard({ role, children }: { role: Role; children: ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, loading, sessionError, refresh } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
-    if (!loading && !user) router.replace(`/login?next=${encodeURIComponent(pathname)}`);
-  }, [loading, user, router, pathname]);
+    if (!loading && !user && !sessionError) router.replace(`/login?next=${encodeURIComponent(pathname)}`);
+  }, [loading, user, sessionError, router, pathname]);
+
+  if (!loading && !user && sessionError) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-slate-50 px-6 text-center">
+        <h1 className="text-xl font-bold">We could not check your session</h1>
+        <p className="max-w-md text-sm text-slate-600">{sessionError}</p>
+        <div className="flex gap-2">
+          <Button onClick={() => void refresh()}>Try again</Button>
+          <ButtonLink href="/login" variant="outline">Sign in again</ButtonLink>
+        </div>
+      </div>
+    );
+  }
 
   if (loading || !user) {
     return (
