@@ -84,7 +84,7 @@ cd frontend && npm run build && npm run start
 
 ## Features by role
 
-**Visitor** — public landing page (`/`) with live platform numbers and featured work pulled from the API, CTAs for *Join as Talent*, *Join as Promoter*, *Explore Platform*, *Get Started* and *Login*. Registration (`/register`) has separate talent and promoter flows.
+**Visitor** — public landing page (`/`) with a photo slideshow hero, live platform numbers and featured work pulled from the API, CTAs for *Join as Talent*, *Join as Promoter*, *Explore Platform*, *Get Started* and *Login*. Registration (`/register`) has separate talent and promoter flows.
 
 **Talent** — dashboard; profile with photo, skills and completion checklist; portfolio CRUD with image / video / audio / PDF uploads, publish-hide toggle and moderation notices; event browsing with filters, enrol / withdraw; contracts (read the terms, accept or decline while pending); ratings; messages; notifications; AI writing assistant.
 

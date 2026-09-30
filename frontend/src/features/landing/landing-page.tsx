@@ -2,9 +2,10 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { ArrowRight, BadgeCheck, CalendarCheck, FileSignature, Megaphone, Menu, Search, ShieldCheck, Sparkles, UserPlus, X } from 'lucide-react';
+import { ArrowRight, BadgeCheck, CalendarCheck, FileSignature, Megaphone, Menu, Search, Sparkles, UserPlus, X } from 'lucide-react';
 import { Brand } from '@/components/layout/brand';
 import { ButtonLink } from '@/components/ui/button';
+import { Slideshow, type Slide } from '@/components/ui/slideshow';
 import { homeFor, useAuth } from '@/features/auth/auth-context';
 import { FeaturedTalents, LiveSection, LiveStats, ShowcaseGrid, Testimonials, UpcomingEvents, useLanding } from './landing-live';
 
@@ -65,44 +66,49 @@ function Header() {
   );
 }
 
+const heroSlides: Slide[] = [
+  { src: '/images/festival-crowd.jpg', alt: 'Festival crowd with hands raised under stage lights', caption: <HeroCaption title="Festival stages" text="Photographers, video crews and lighting designers" /> },
+  { src: '/images/dj-club-set.jpg', alt: 'DJ performing a club set', caption: <HeroCaption title="Club nights" text="DJs, hosts and sound engineers" /> },
+  { src: '/images/dancer-contemporary.jpg', alt: 'Contemporary dancer mid-movement', caption: <HeroCaption title="Stage and dance" text="Dancers, choreographers and performers" /> },
+  { src: '/images/band-live-stage.jpg', alt: 'Live band performing on stage', caption: <HeroCaption title="Live music" text="Bands, musicians and session players" /> },
+  { src: '/images/fashion-editorial.jpg', alt: 'Editorial fashion shoot', caption: <HeroCaption title="Fashion and brand launches" text="Models, makeup artists and stylists" /> },
+  { src: '/images/mc-gala.jpg', alt: 'Host on stage at a gala dinner', caption: <HeroCaption title="Galas and corporate events" text="MCs, hosts and event crews" /> },
+];
+
+function HeroCaption({ title, text }: { title: string; text: string }) {
+  return (
+    <>
+      <p className="text-sm font-bold">{title}</p>
+      <p className="hidden text-xs text-slate-200 sm:block">{text}</p>
+    </>
+  );
+}
+
 function Hero() {
   return (
-    <section className="relative overflow-hidden bg-[#fbf8f3]">
-      <div className="mx-auto grid max-w-7xl items-center gap-12 px-4 pb-16 pt-12 sm:px-6 lg:grid-cols-[1.05fr_1fr] lg:gap-10 lg:pb-24 lg:pt-20">
-        <div>
-          <p className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700">
+    <section>
+      <Slideshow slides={heroSlides} label="Events and talent on Talent Connect" interval={6500} scrimClassName="bg-gradient-to-r from-ink/90 via-ink/60 to-ink/15" className="min-h-[34rem] lg:min-h-[40rem]">
+        <div className="mx-auto flex min-h-[34rem] max-w-7xl flex-col justify-center px-4 pb-24 pt-14 sm:px-6 lg:min-h-[40rem] lg:pb-28">
+          <p className="inline-flex w-fit items-center gap-2 rounded-full bg-white/95 px-3 py-1 text-xs font-semibold text-slate-800">
             <BadgeCheck className="size-4 text-emerald-600" aria-hidden /> Every promoter is licence-checked before they can book
           </p>
-          <h1 className="mt-6 text-[2.6rem] font-extrabold leading-[1.05] text-slate-900 sm:text-6xl">
-            The right crew for <span className="text-accent-600">every night</span> on your calendar.
+          <h1 className="mt-6 max-w-3xl text-[2.6rem] font-extrabold leading-[1.05] text-white sm:text-6xl">
+            The right crew for <span className="text-accent-300">every night</span> on your calendar.
           </h1>
-          <p className="mt-6 max-w-xl text-lg leading-relaxed text-slate-600">
-            Talent Connect puts photographers, DJs, dancers, hosts and stage crews in front of the promoters who hire them — with verified agencies, clear contracts and reviews from real bookings.
+          <p className="mt-6 max-w-xl text-lg leading-relaxed text-slate-200">
+            Talent Connect puts photographers, DJs, dancers, hosts and stage crews in front of the promoters who hire them, with verified agencies, clear contracts and reviews from real bookings.
           </p>
-          <div className="mt-8 flex flex-wrap gap-3">
+          <div className="mt-8 flex flex-wrap items-center gap-3">
             <ButtonLink href="/register?role=talent" size="lg">Join as Talent</ButtonLink>
-            <ButtonLink href="/register?role=promoter" size="lg" variant="dark">Join as Promoter</ButtonLink>
-            <a href="#explore" className="inline-flex h-12 items-center gap-2 px-3 text-base font-medium text-slate-700 hover:text-slate-900">
+            <ButtonLink href="/register?role=promoter" size="lg" variant="outline" className="border-white bg-white text-slate-900 hover:bg-slate-100">Join as Promoter</ButtonLink>
+            <a href="#explore" className="inline-flex h-12 items-center gap-2 px-3 text-base font-medium text-white hover:underline">
               Explore Platform <ArrowRight className="size-4" />
             </a>
           </div>
-          <div className="mt-10 border-t border-slate-200 pt-6"><HeroStats /></div>
         </div>
-
-        <div className="relative mx-auto w-full max-w-xl lg:max-w-none">
-          <div className="grid grid-cols-6 grid-rows-6 gap-3 sm:gap-4">
-            <img src="/images/festival-crowd.jpg" alt="Festival crowd with hands raised under stage lights" className="col-span-4 row-span-6 h-full min-h-[22rem] w-full rounded-3xl object-cover sm:min-h-[30rem]" />
-            <img src="/images/dj-club-set.jpg" alt="DJ performing a club set" className="col-span-2 row-span-3 h-full w-full rounded-2xl object-cover" />
-            <img src="/images/dancer-contemporary.jpg" alt="Contemporary dancer mid-movement" className="col-span-2 row-span-3 h-full w-full rounded-2xl object-cover" />
-          </div>
-          <div className="absolute -bottom-5 left-3 flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-lg sm:left-6">
-            <span className="flex size-10 items-center justify-center rounded-full bg-emerald-50 text-emerald-600"><ShieldCheck className="size-5" /></span>
-            <div>
-              <p className="text-sm font-bold text-slate-900">Licence verified</p>
-              <p className="text-xs text-slate-500">Reviewed by our admin team</p>
-            </div>
-          </div>
-        </div>
+      </Slideshow>
+      <div className="border-b border-slate-200 bg-[#fbf8f3]">
+        <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6"><HeroStats /></div>
       </div>
     </section>
   );

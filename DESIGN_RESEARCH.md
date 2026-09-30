@@ -24,7 +24,7 @@ Before designing each major screen I ran screen-specific searches on Dribbble (a
 - **Links:** https://dribbble.com/tags/talent-website · https://dribbble.com/tags/marketplace · https://dribbble.com/marketplace · https://dribbble.com/tags/events_booking
 - **Observations:** Strong two-sided CTAs ("Hire talent" / "Get hired") sit above the fold next to a short value statement; proof (numbers, verified badges) follows immediately; work/people imagery carries the page; event cards show date and place at a glance; typography-led layouts feel more credible than dashboards-in-a-hero.
 - **Components inspired:** two-CTA hero, proof strip of live stats, dual-audience section ("For talent" / "For promoters"), featured-event cards, "how it works" steps, closing CTA band.
-- **Decisions:** original copy ("The right crew for every night on your calendar."); hero photo mosaic of real demo work; stats, events and showcase come from `GET /public/landing` (live data, no fake numbers); a "Licence verified" trust chip explains the admin vetting; the page never forces login and deliberately does not resemble a dashboard. Mobile collapses the mosaic under the copy and keeps both CTAs full-width.
+- **Decisions:** original copy ("The right crew for every night on your calendar."); full-bleed hero slideshow of real demo work (six slides, crossfade, pause/play, prev/next, dots, pauses on hover/focus, no autoplay under `prefers-reduced-motion`) with a dark scrim so the headline stays legible; stats, events and showcase come from `GET /public/landing` (live data, no fake numbers); a "Licence verified" trust chip explains the admin vetting; the page never forces login and deliberately does not resemble a dashboard. Mobile collapses the mosaic under the copy and keeps both CTAs full-width.
 
 ## 2. Login and registration
 
@@ -32,7 +32,7 @@ Before designing each major screen I ran screen-specific searches on Dribbble (a
 - **Links:** https://dribbble.com/shots/6668446-Split-Screen-Sign-Up-Page · https://dribbble.com/tags/signup · https://dribbble.com/search/select-role
 - **Observations:** Split layouts pair a short form with a brand/value panel; role choice works best as an explicit first step; long forms are grouped into labelled sections with inline validation.
 - **Components inspired:** split auth layout, role switch tabs, grouped fieldsets, password hint and strength rules, inline field errors.
-- **Decisions:** a single auth layout used by `/login` and `/register`; registration starts with a Talent / Promoter switch (also driven by `?role=`) and shows only the fields for that role (talent: gender and specialization; promoter: agency name and licence info). Validation mirrors the API rules, and server 422 errors are mapped back onto fields. The value panel collapses on mobile.
+- **Decisions:** a single auth layout used by `/login` and `/register` with a slideshow panel (role-specific quotes on register; a dots-only banner on mobile); registration starts with a Talent / Promoter switch (also driven by `?role=`) and shows only the fields for that role (talent: gender and specialization; promoter: agency name and licence info). Validation mirrors the API rules, and server 422 errors are mapped back onto fields. The value panel collapses on mobile.
 
 ## 3. Talent dashboard
 

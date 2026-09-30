@@ -53,7 +53,7 @@ export function LoginForm() {
   });
 
   return (
-    <AuthLayout title="Welcome back" subtitle="Sign in to manage your bookings, events and messages." quote={{ text: 'Every great night out starts with someone reliable behind the lens, the decks or the lights.', by: 'The Talent Connect community' }}>
+    <AuthLayout title="Welcome back" subtitle="Sign in to manage your bookings, events and messages.">
       <form onSubmit={onSubmit} noValidate className="space-y-5">
         {next && !formError && <Alert tone="info">Please sign in to continue.</Alert>}
         {formError && <Alert tone="danger">{formError}</Alert>}

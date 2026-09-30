@@ -17,7 +17,7 @@ import { useApi } from '@/lib/use-api';
 import type { PublicMeta } from '@/lib/types';
 import { cn } from '@/lib/cn';
 import { homeFor, useAuth } from './auth-context';
-import { AuthLayout } from './auth-layout';
+import { AuthLayout, PROMOTER_SLIDES, TALENT_SLIDES } from './auth-layout';
 
 const PASSWORD_RULE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,72}$/;
 const PHONE_RULE = /^\+?[0-9()\-\s]{7,20}$/;
@@ -59,8 +59,7 @@ export function RegisterForm() {
     <AuthLayout
       title="Create your account"
       subtitle="Choose how you will use Talent Connect. You can always reach us if you picked the wrong one."
-      image={role === 'talent' ? '/images/fashion-editorial.jpg' : '/images/lighting-stage.jpg'}
-      quote={role === 'talent' ? { text: 'Put your best work in front of promoters who are hiring this month.', by: 'For photographers, DJs, dancers, hosts and crews' } : { text: 'Verified agencies get the trust badge — and the best talent on the platform.', by: 'For promoters and event agencies' }}
+      slides={role === 'talent' ? TALENT_SLIDES : PROMOTER_SLIDES}
     >
       <div role="tablist" aria-label="Account type" className="mb-7 grid grid-cols-2 gap-3">
         {([
