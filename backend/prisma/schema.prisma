@@ -1,0 +1,349 @@
+// Talent Connect – database schema (SQLite)
+generator client {
+  engineType = "client"
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  TALENT
+  PROMOTER
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  DEACTIVATED
+}
+
+enum LicenceStatus {
+  NOT_SUBMITTED
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum MediaType {
+  IMAGE
+  VIDEO
+  AUDIO
+  DOCUMENT
+}
+
+enum ModerationStatus {
+  ACTIVE
+  FLAGGED
+  REMOVED
+}
+
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  ONGOING
+  COMPLETED
+  CANCELLED
+}
+
+enum ContractStatus {
+  PENDING
+  ACTIVE
+  COMPLETED
+  CANCELLED
+  REJECTED
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  REFUNDED
+}
+
+enum PaymentPurpose {
+  LICENCE_FEE
+}
+
+enum NotificationType {
+  CONTRACT
+  EVENT
+  LICENCE
+  PAYMENT
+  MESSAGE
+  RATING
+  ADMIN
+}
+
+enum ReviewAction {
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
+model User {
+  id           String     @id @default(cuid())
+  email        String     @unique
+  passwordHash String
+  firstName    String
+  lastName     String
+  phone        String?
+  avatarUrl    String?
+  role         Role
+  status       UserStatus @default(ACTIVE)
+  /// Incremented on logout / suspension so previously issued JWTs stop working.
+  tokenVersion Int        @default(0)
+  lastLoginAt  DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  talent        Talent?
+  promoter      Promoter?
+  sentMessages  Message[]      @relation("MessageSender")
+  receivedMessages Message[]   @relation("MessageRecipient")
+  notifications Notification[]
+  ratingsGiven  Rating[]       @relation("RatingAuthor")
+  licenceReviews LicenceReview[] @relation("ReviewAdmin")
+  aiMessages    AiMessage[]
+
+  @@index([role, status])
+}
+
+model Talent {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  gender          String?
+  specialization  String
+  bio             String?
+  location        String?
+  skills          String   @default("")
+  experienceYears Int?
+  website         String?
+  ratingAvg       Float    @default(0)
+  ratingCount     Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  portfolios  Portfolio[]
+  events      TalentEvent[]
+  contracts   Contract[]
+  ratings     Rating[]
+
+  @@index([specialization])
+  @@index([ratingAvg])
+}
+
+model Promoter {
+  id                String        @id @default(cuid())
+  userId            String        @unique
+  agencyName        String
+  agencyDescription String?
+  website           String?
+  location          String?
+  licenceNumber     String?
+  licenceAuthority  String?
+  licenceExpiry     DateTime?
+  licenceInfo       String?
+  licenceDocumentUrl String?
+  licenceStatus     LicenceStatus @default(NOT_SUBMITTED)
+  licenceFeePaid    Boolean       @default(false)
+  licenceSubmittedAt DateTime?
+  licenceReviewedAt DateTime?
+  licenceRejectionReason String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  events    Event[]
+  payments  Payment[]
+  contracts Contract[]
+  reviews   LicenceReview[]
+
+  @@index([licenceStatus])
+}
+
+model LicenceReview {
+  id         String       @id @default(cuid())
+  promoterId String
+  adminId    String?
+  action     ReviewAction
+  reason     String?
+  createdAt  DateTime     @default(now())
+
+  promoter Promoter @relation(fields: [promoterId], references: [id], onDelete: Cascade)
+  admin    User?    @relation("ReviewAdmin", fields: [adminId], references: [id], onDelete: SetNull)
+
+  @@index([promoterId])
+}
+
+model Portfolio {
+  id               String           @id @default(cuid())
+  talentId         String
+  title            String
+  description      String?
+  mediaType        MediaType
+  mediaUrl         String
+  fileName         String?
+  mimeType         String?
+  fileSize         Int?
+  isPublished      Boolean          @default(true)
+  moderationStatus ModerationStatus @default(ACTIVE)
+  moderationNote   String?
+  moderatedAt      DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  talent Talent @relation(fields: [talentId], references: [id], onDelete: Cascade)
+
+  @@index([talentId])
+  @@index([moderationStatus])
+}
+
+model Event {
+  id          String      @id @default(cuid())
+  promoterId  String
+  title       String
+  location    String
+  description String
+  category    String?
+  talentNeeded String?
+  budget      String?
+  eventDate   DateTime
+  status      EventStatus @default(DRAFT)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  promoter    Promoter      @relation(fields: [promoterId], references: [id], onDelete: Cascade)
+  enrollments TalentEvent[]
+  contracts   Contract[]
+
+  @@index([status, eventDate])
+  @@index([promoterId])
+}
+
+model TalentEvent {
+  id         String   @id @default(cuid())
+  talentId   String
+  eventId    String
+  note       String?
+  enrolledAt DateTime @default(now())
+
+  talent Talent @relation(fields: [talentId], references: [id], onDelete: Cascade)
+  event  Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([talentId, eventId])
+  @@index([eventId])
+}
+
+model Contract {
+  id            String         @id @default(cuid())
+  talentId      String
+  promoterId    String
+  eventId       String
+  contractDate  DateTime       @default(now())
+  terms         String
+  amount        Float?
+  currency      String         @default("USD")
+  documentUrl   String?
+  documentName  String?
+  reviewNotes   String?
+  talentResponseNote String?
+  respondedAt   DateTime?
+  status        ContractStatus @default(PENDING)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  talent   Talent   @relation(fields: [talentId], references: [id], onDelete: Cascade)
+  promoter Promoter @relation(fields: [promoterId], references: [id], onDelete: Cascade)
+  event    Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  rating   Rating?
+
+  @@index([talentId, status])
+  @@index([promoterId, status])
+  @@index([eventId])
+}
+
+model Payment {
+  id          String         @id @default(cuid())
+  promoterId  String
+  purpose     PaymentPurpose @default(LICENCE_FEE)
+  amount      Float
+  currency    String         @default("USD")
+  status      PaymentStatus  @default(PENDING)
+  provider    String
+  providerRef String?
+  cardBrand   String?
+  cardLast4   String?
+  failureReason String?
+  description String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  promoter Promoter @relation(fields: [promoterId], references: [id], onDelete: Cascade)
+
+  @@index([promoterId, status])
+}
+
+model Message {
+  id          String    @id @default(cuid())
+  senderId    String
+  recipientId String
+  content     String
+  isRead      Boolean   @default(false)
+  readAt      DateTime?
+  sentAt      DateTime  @default(now())
+
+  sender    User @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  recipient User @relation("MessageRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+
+  @@index([senderId, recipientId, sentAt])
+  @@index([recipientId, isRead])
+}
+
+model Notification {
+  id      String           @id @default(cuid())
+  userId  String
+  title   String?
+  message String
+  type    NotificationType
+  link    String?
+  isRead  Boolean          @default(false)
+  sentAt  DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead, sentAt])
+}
+
+model Rating {
+  id         String   @id @default(cuid())
+  talentId   String
+  authorId   String
+  contractId String?  @unique
+  score      Int
+  comment    String?
+  createdAt  DateTime @default(now())
+
+  talent   Talent    @relation(fields: [talentId], references: [id], onDelete: Cascade)
+  author   User      @relation("RatingAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  contract Contract? @relation(fields: [contractId], references: [id], onDelete: SetNull)
+
+  @@index([talentId])
+}
+
+model AiMessage {
+  id        String   @id @default(cuid())
+  userId    String
+  role      String
+  content   String
+  task      String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
