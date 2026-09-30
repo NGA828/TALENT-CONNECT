@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Activity, FileBarChart, Images, LayoutDashboard, Menu, ShieldCheck, Users, X } from 'lucide-react';
+import { Activity, Banknote, FileBarChart, Images, LayoutDashboard, Menu, ShieldCheck, Users, X } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { Brand } from './brand';
 import { UserMenu } from './user-menu';
@@ -12,6 +12,7 @@ const nav = [
   { href: '/admin/dashboard', label: 'Overview', icon: LayoutDashboard },
   { href: '/admin/users', label: 'Users', icon: Users },
   { href: '/admin/promoters', label: 'Promoters', icon: ShieldCheck },
+  { href: '/admin/licence-fees', label: 'Licence fees', icon: Banknote },
   { href: '/admin/portfolios', label: 'Portfolios', icon: Images },
   { href: '/admin/reports', label: 'Reports', icon: FileBarChart },
   { href: '/admin/monitoring', label: 'Monitoring', icon: Activity },

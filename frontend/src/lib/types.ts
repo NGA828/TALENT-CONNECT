@@ -4,6 +4,8 @@ export type UserStatus = 'ACTIVE' | 'SUSPENDED' | 'DEACTIVATED';
 export type LicenceStatus = 'NOT_SUBMITTED' | 'PENDING' | 'VERIFIED' | 'REJECTED';
 export type ContractStatus = 'PENDING' | 'ACTIVE' | 'COMPLETED' | 'CANCELLED' | 'REJECTED';
 export type PaymentStatus = 'PENDING' | 'SUCCESS' | 'FAILED' | 'REFUNDED';
+/** How the licence fee reaches the platform in Cameroon: MTN MoMo, Orange Money, or cash at the counter. */
+export type PaymentMethod = 'MTN_MOMO' | 'ORANGE_MONEY' | 'OFFLINE';
 export type EventStatus = 'DRAFT' | 'PUBLISHED' | 'ONGOING' | 'COMPLETED' | 'CANCELLED';
 export type MediaType = 'IMAGE' | 'VIDEO' | 'AUDIO' | 'DOCUMENT';
 export type ModerationStatus = 'ACTIVE' | 'FLAGGED' | 'REMOVED';
@@ -48,6 +50,8 @@ export interface PublicMeta {
   eventCategories: string[];
   licenceFee: number;
   currency: string;
+  /** MTN MoMo / Orange Money wallets, managed by administrators. */
+  licenceFeeMethods?: PaymentMethodOption[];
 }
 
 export interface TalentProfile {
@@ -205,12 +209,28 @@ export interface ContractList extends Paginated<Contract> {
   counts: Partial<Record<ContractStatus, number>>;
 }
 
+export interface PaymentMethodOption {
+  value: PaymentMethod;
+  label: string;
+  shortLabel: string;
+  /** USSD code that opens the transfer menu, e.g. *126# (MTN MoMo) or #150# (Orange Money). */
+  ussd: string;
+  prefixes: string;
+  enabled: boolean;
+  /** Merchant wallet the fee is sent to, or null when the administrator has not set one. */
+  number: string | null;
+}
+
+/** Licence-fee configuration, owned by administrators in Admin → Licence fees. */
 export interface PaymentConfig {
   provider: string;
-  sandbox: boolean;
+  automatic: boolean;
   currency: string;
   licenceFee: number;
-  testCards: { number: string; brand: string; outcome: string }[];
+  payeeName: string;
+  instructions: string;
+  methods: PaymentMethodOption[];
+  suggestedPayerPhone?: string | null;
 }
 
 export interface Payment {
@@ -220,21 +240,73 @@ export interface Payment {
   amount: number;
   currency: string;
   status: PaymentStatus;
+  /** Null while the promoter has not declared the transfer yet. */
+  method: PaymentMethod | null;
   provider: string;
+  /** Platform reference the promoter quotes in the Mobile Money transfer (e.g. TC-LIC-8F3A21). */
   providerRef: string | null;
-  cardBrand: string | null;
-  cardLast4: string | null;
+  /** Transaction ID from the MTN MoMo / Orange Money SMS receipt. */
+  transactionRef: string | null;
+  payerName: string | null;
+  payerPhone: string | null;
+  receiptUrl: string | null;
   failureReason: string | null;
+  reviewNote: string | null;
+  reviewedById: string | null;
   description: string | null;
+  submittedAt: string | null;
+  confirmedAt: string | null;
   createdAt: string;
   updatedAt: string;
-  promoter?: { id: string; agencyName: string };
+  promoter?: {
+    id: string;
+    agencyName: string;
+    licenceStatus?: LicenceStatus;
+    user?: { firstName: string; lastName: string; email: string; phone: string | null };
+  };
 }
 
 export interface PaymentList extends Paginated<Payment> {
   totalPaid: number;
+  awaitingConfirmation: number;
   licence: { licenceFeePaid: boolean; licenceStatus: LicenceStatus };
   config: PaymentConfig;
+}
+
+/** Promoter who still owes the licence fee (admin "record a payment" picker). */
+export interface FeePromoter {
+  id: string;
+  agencyName: string;
+  licenceStatus: LicenceStatus;
+  user: { firstName: string; lastName: string; email: string; phone: string | null };
+}
+
+/** Admin → Licence fees page. */
+export interface AdminLicenceFee {
+  settings: {
+    amount: number;
+    currency: string;
+    payeeName: string;
+    mtnNumber: string;
+    orangeNumber: string;
+    mtnEnabled: boolean;
+    orangeEnabled: boolean;
+    instructions: string;
+    updatedAt: string | null;
+  };
+  limits: { minFee: number; maxFee: number };
+  /** Wallets that still carry the shipped demo values and must be replaced. */
+  demoWalletsInUse: string[];
+  overview: {
+    currency: string;
+    licenceFee: number;
+    collected: number;
+    refunded: number;
+    awaitingAmount: number;
+    counts: { confirmed: number; awaiting: number; rejected: number; refunded: number };
+    promoters: { total: number; feePaid: number; feeUnpaid: number };
+  };
+  promoters: FeePromoter[];
 }
 
 export interface PromoterProfile {
@@ -299,6 +371,8 @@ export interface UserSummary {
 
 export interface AiStatus {
   provider: string;
+  /** Human-readable vendor, e.g. "Grok (xAI)". */
+  providerLabel?: string;
   live: boolean;
   model: string;
   mode: string;
@@ -356,7 +430,7 @@ export interface AdminStats {
   pendingVerification: number;
   events: { total: number; byStatus: Partial<Record<EventStatus, number>> };
   contracts: { total: number; active: number; byStatus: Partial<Record<ContractStatus, number>> };
-  payments: { revenue: number; byStatus: Partial<Record<PaymentStatus, { count: number; amount: number }>> };
+  payments: { revenue: number; awaitingConfirmation: number; byStatus: Partial<Record<PaymentStatus, { count: number; amount: number }>> };
   portfolios: { flagged: number; removed: number };
   pendingPromoters: { id: string; agencyName: string; owner: string; submittedAt: string }[];
   recentUsers: { id: string; firstName: string; lastName: string; role: Role; createdAt: string; status: UserStatus }[];

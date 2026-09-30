@@ -5,12 +5,19 @@ import { execSync } from 'node:child_process';
 import { rmSync } from 'node:fs';
 import { after as afterAll, before as beforeAll, describe, it } from 'node:test';
 import request from 'supertest';
+import { resolveAiKey, selectAiProvider } from '../src/ai/providers/ai-config';
 
 process.env.DATABASE_URL = 'file:./prisma/test.db';
 process.env.UPLOAD_DIR = './uploads-test';
 process.env.RATE_LIMIT = '100000';
 process.env.AUTH_RATE_LIMIT = '100000';
 process.env.AI_RATE_LIMIT = '100000';
+// Tests always exercise the offline adapter: a real key in backend/.env must never
+// make the suite call a paid API. (ConfigService lets process.env win over the .env file.)
+process.env.AI_API_KEY = '';
+process.env.XAI_API_KEY = '';
+process.env.GROK_API_KEY = '';
+process.env.AI_PROVIDER = '';
 
 /** Builds a fresh, seeded SQLite database (prisma/test.db) – the development database is never touched. */
 function prepareDatabase() {
@@ -109,7 +116,7 @@ describe('Talent Connect API (e2e)', () => {
       expect(res.status).toBe(422);
     });
     it('registers a promoter with licence details; licence starts as NOT_SUBMITTED', async () => {
-      const res = await http.post('/api/auth/register/promoter').send({ firstName: 'Omar', lastName: 'Said', email: 'omar@agency.test', phone: '+971 50 123 4567', password: 'Str0ngPass!', confirmPassword: 'Str0ngPass!', agencyName: 'Sahara Nights', licenceNumber: 'AE-2026-7781' });
+      const res = await http.post('/api/auth/register/promoter').send({ firstName: 'Omar', lastName: 'Said', email: 'omar@agency.test', phone: '+237 6 77 12 34 56', password: 'Str0ngPass!', confirmPassword: 'Str0ngPass!', agencyName: 'Bamenda Nights', licenceNumber: 'LIC-MINAC-2026-7781' });
       expect(res.status).toBe(201);
       expect(res.body.user.role).toBe('PROMOTER');
       expect(res.body.user.promoter.licenceStatus).toBe('NOT_SUBMITTED');
@@ -160,7 +167,7 @@ describe('Talent Connect API (e2e)', () => {
       expect(res.body.completion.percent).toBeGreaterThan(50);
     });
     it('updates the profile with validation and sanitisation', async () => {
-      const ok = await patch('/api/talents/me', alex, { bio: '<script>alert(1)</script>Editorial & live-event photographer based in NYC with a decade of experience.', skills: ['Retouching', 'Lighting', 'Art direction', 'Retouching'] });
+      const ok = await patch('/api/talents/me', alex, { bio: '<script>alert(1)</script>Editorial & live-event photographer based in Douala with a decade of experience.', skills: ['Retouching', 'Lighting', 'Art direction', 'Retouching'] });
       expect(ok.status).toBe(200);
       expect(ok.body.bio).not.toContain('<script>');
       expect(ok.body.bio).toContain('Editorial & live-event');
@@ -425,61 +432,200 @@ describe('Talent Connect API (e2e)', () => {
     });
   });
 
-  // ───────────────────────── licence, payment & verification ─────────────────────────
-  describe('licence, payments and admin verification', () => {
+  // ───────────────────────── licence, Mobile Money fee & verification ─────────────────────────
+  describe('licence, Mobile Money licence fee and admin verification', () => {
     let promoterToken: string;
     let promoterId: string;
     let paymentId: string;
-    const licence = { licenceNumber: 'AE-2026-7781', licenceAuthority: 'Dubai Tourism Authority', licenceExpiry: future(300), licenceInfo: 'Annual event promotion licence' };
+    let cashToken: string;
+    let cashPromoterId: string;
+    const licence = { licenceNumber: 'LIC-MINAC-2026-7781', licenceAuthority: 'Ministère des Arts et de la Culture (MINAC)', licenceExpiry: future(300), licenceInfo: 'Annual licence to promote shows and events (licence d’entrepreneur de spectacle).' };
+    const transfer = { method: 'MTN_MOMO', payerName: 'Omar Said', payerPhone: '+237 677 12 34 56', transactionRef: 'MP2509.1234.A01923' };
+    const correctedRef = 'MP2509.1234.A01924';
+    /** Multipart declaration, exactly what the promoter portal sends. */
+    const declare = (token: string, id: string, fields: Record<string, string> = {}) =>
+      Object.entries({ ...transfer, ...fields }).reduce((r, [k, v]) => r.field(k, v), http.post(`/api/payments/${id}/submit`).set(auth(token)));
 
-    it('new promoter saves licence info but stays NOT_SUBMITTED until the fee is paid', async () => {
+    it('new promoter saves licence info but stays NOT_SUBMITTED until the fee is confirmed', async () => {
       promoterToken = (await login('omar@agency.test', 'Str0ngPass!')).token;
       const res = await http.post('/api/promoters/me/licence').set(auth(promoterToken)).field('licenceNumber', licence.licenceNumber).field('licenceAuthority', licence.licenceAuthority).field('licenceExpiry', licence.licenceExpiry).field('licenceInfo', licence.licenceInfo);
       expect(res.status).toBe(201);
       expect(res.body.licenceStatus).toBe('NOT_SUBMITTED');
       promoterId = res.body.id;
     });
-    it('exposes sandbox config and creates a checkout', async () => {
+
+    it('exposes the Cameroon Mobile Money fee: FCFA, MTN MoMo (*126#) and Orange Money (#150#)', async () => {
       const cfg = await get('/api/payments/config', promoterToken);
-      expect(cfg.body.sandbox).toBe(true);
-      expect(cfg.body.testCards.length).toBeGreaterThan(1);
+      expect(cfg.status).toBe(200);
+      expect(cfg.body.currency).toBe('XAF');
+      expect(cfg.body.licenceFee).toBe(30000);
+      expect(cfg.body.payeeName).toMatch(/Cameroun|Talent Connect/);
+      const mtn = cfg.body.methods.find((m: any) => m.value === 'MTN_MOMO');
+      expect(mtn.ussd).toBe('*126#');
+      expect(mtn.number).toMatch(/^\+237 6/);
+      expect(cfg.body.methods.find((m: any) => m.value === 'ORANGE_MONEY').ussd).toBe('#150#');
+      // No card sandbox any more: nothing about test cards is exposed.
+      expect(cfg.body.testCards).toBeUndefined();
+      expect(cfg.body).not.toHaveProperty('sandbox');
+    });
+
+    it('creates a checkout with the platform reference the promoter quotes in the transfer', async () => {
       const co = await post('/api/payments/checkout', promoterToken, {});
       expect(co.status).toBe(201);
       expect(co.body.payment.status).toBe('PENDING');
+      expect(co.body.payment.amount).toBe(30000);
+      expect(co.body.payment.currency).toBe('XAF');
+      expect(co.body.payment.providerRef).toMatch(/^TC-LIC-/);
+      expect(co.body.payment.submittedAt).toBeNull();
       paymentId = co.body.payment.id;
     });
-    it('rejects invalid cards (422) and records declines as FAILED', async () => {
-      const invalid = await post(`/api/payments/${paymentId}/pay`, promoterToken, { cardholderName: 'Omar Said', cardNumber: '1234 5678 9012 3456', expMonth: 12, expYear: new Date().getFullYear() + 2, cvc: '123' });
-      expect(invalid.status).toBe(422);
-      const expired = await post(`/api/payments/${paymentId}/pay`, promoterToken, { cardholderName: 'Omar Said', cardNumber: '4242424242424242', expMonth: 1, expYear: new Date().getFullYear() - 1, cvc: '123' });
-      expect(expired.status).toBe(422);
-      const declined = await post(`/api/payments/${paymentId}/pay`, promoterToken, { cardholderName: 'Omar Said', cardNumber: '4000 0000 0000 0002', expMonth: 12, expYear: new Date().getFullYear() + 2, cvc: '123' });
-      expect(declined.status).toBe(201);
-      expect(declined.body.payment.status).toBe('FAILED');
-      expect(declined.body.payment.failureReason).toMatch(/declined/i);
-      expect(JSON.stringify(declined.body)).not.toContain('4000000000000002');
+
+    it('validates the declared transfer (422): network, Cameroonian number and transaction ID', async () => {
+      const badMethod = await declare(promoterToken, paymentId, { method: 'CARD' });
+      expect(badMethod.status).toBe(422);
+      expect(badMethod.body.errors.method).toBeDefined();
+      const foreignPhone = await declare(promoterToken, paymentId, { payerPhone: '+971 50 123 4567' });
+      expect(foreignPhone.status).toBe(422);
+      expect(foreignPhone.body.errors.payerPhone).toBeDefined();
+      const shortRef = await declare(promoterToken, paymentId, { transactionRef: '123' });
+      expect(shortRef.status).toBe(422);
+      expect(shortRef.body.errors.transactionRef).toBeDefined();
     });
-    it("another promoter cannot pay someone else's payment (403)", async () => {
-      const res = await post(`/api/payments/${paymentId}/pay`, jordan, { cardholderName: 'Jordan Blake', cardNumber: '4242424242424242', expMonth: 12, expYear: new Date().getFullYear() + 2, cvc: '123' });
-      expect(res.status).toBe(403);
+
+    it("another promoter cannot declare a transfer on someone else's payment (403)", async () => {
+      expect((await declare(jordan, paymentId, { transactionRef: 'MP2509.1234.B00999' })).status).toBe(403);
     });
-    it('successful payment completes the licence submission (PENDING) and notifies', async () => {
-      const ok = await post(`/api/payments/${paymentId}/pay`, promoterToken, { cardholderName: 'Omar Said', cardNumber: '4242 4242 4242 4242', expMonth: 12, expYear: new Date().getFullYear() + 2, cvc: '123' });
-      expect(ok.body.payment.status).toBe('SUCCESS');
-      expect(ok.body.payment.cardLast4).toBe('4242');
-      expect(ok.body.licence.licenceStatus).toBe('PENDING');
-      expect((await post(`/api/payments/${paymentId}/pay`, promoterToken, { cardholderName: 'Omar Said', cardNumber: '4242424242424242', expMonth: 12, expYear: new Date().getFullYear() + 2, cvc: '123' })).status).toBe(409);
-      expect((await post('/api/payments/checkout', promoterToken, {})).status).toBe(409);
+
+    it('declares the MTN MoMo transfer: PENDING until an administrator confirms it', async () => {
+      const res = await declare(promoterToken, paymentId).attach('receipt', PNG, { filename: 'momo-receipt.png', contentType: 'image/png' });
+      expect(res.status).toBe(201);
+      expect(res.body.payment.status).toBe('PENDING');
+      expect(res.body.payment.method).toBe('MTN_MOMO');
+      expect(res.body.payment.transactionRef).toBe(transfer.transactionRef);
+      expect(res.body.payment.payerPhone).toBe('+237677123456');
+      expect(res.body.payment.receiptUrl).toMatch(/^\/uploads\/receipts\//);
+      expect(res.body.payment.confirmedAt).toBeNull();
+      expect(res.body.licence.licenceFeePaid).toBe(false);
+      const notes = await get('/api/notifications', promoterToken);
+      expect(notes.body.items.some((n: any) => n.type === 'PAYMENT' && /submitted/i.test(n.title))).toBe(true);
+    });
+
+    it('shows the transfer in the administrator queue with the promoter contact', async () => {
+      const queue = await get('/api/admin/payments?awaiting=true', admin);
+      expect(queue.body.items.some((p: any) => p.id === paymentId)).toBe(true);
+      const row = queue.body.items.find((p: any) => p.id === paymentId);
+      expect(row.promoter.agencyName).toBe('Bamenda Nights');
+      expect(row.payerPhone).toBe('+237677123456');
+      expect((await get('/api/admin/payments?q=MP2509.1234.A01923', admin)).body.items.some((p: any) => p.id === paymentId)).toBe(true);
+    });
+
+    it('a promoter cannot start a second transfer while one waits for confirmation (409)', async () => {
+      // Grace has a seeded MTN MoMo transfer waiting for an administrator.
+      expect((await post('/api/payments/checkout', grace, {})).status).toBe(409);
+      const mine = (await get('/api/payments', grace)).body.items[0];
+      expect((await declare(grace, mine.id, { transactionRef: 'MP2509.1002.A01003' })).status).toBe(409);
+    });
+
+    it('cannot approve the licence while the fee is still to be confirmed (409)', async () => {
+      expect((await patch(`/api/admin/promoters/${promoterId}/verify`, admin, { approved: true })).status).toBe(409);
+    });
+
+    it('administrator rejects the transfer with a reason and the promoter is notified', async () => {
+      const reject = await post(`/api/admin/payments/${paymentId}/reject`, admin, { reason: 'No transfer with this transaction ID was received on the MTN MoMo wallet.' });
+      expect(reject.status).toBe(201);
+      expect(reject.body.status).toBe('FAILED');
+      expect(reject.body.failureReason).toMatch(/transaction ID/);
+      const notes = await get('/api/notifications', promoterToken);
+      expect(notes.body.items.some((n: any) => n.type === 'PAYMENT' && /not confirmed/i.test(n.title))).toBe(true);
+      // Rejecting needs a reason.
+      expect((await post(`/api/admin/payments/${paymentId}/reject`, admin, {})).status).toBe(422);
+    });
+
+    it('promoter resubmits with the corrected transaction ID', async () => {
+      const res = await declare(promoterToken, paymentId, { transactionRef: correctedRef, method: 'ORANGE_MONEY', payerPhone: '+237 699 12 34 56' });
+      expect(res.status).toBe(201);
+      expect(res.body.payment.status).toBe('PENDING');
+      expect(res.body.payment.method).toBe('ORANGE_MONEY');
+      expect(res.body.payment.failureReason).toBeNull();
+    });
+
+    it('administrator confirms the transfer: fee settled, licence into review, promoter notified', async () => {
+      const ok = await post(`/api/admin/payments/${paymentId}/confirm`, admin, { note: 'Orange Money transfer seen on the merchant wallet.' });
+      expect(ok.status).toBe(201);
+      expect(ok.body.status).toBe('SUCCESS');
+      expect(ok.body.confirmedAt).toBeTruthy();
+      expect(ok.body.reviewNote).toMatch(/merchant wallet/);
+      expect((await post(`/api/admin/payments/${paymentId}/confirm`, admin, {})).status).toBe(409);
+
       const history = await get('/api/payments', promoterToken);
       expect(history.body.items[0].status).toBe('SUCCESS');
+      expect(history.body.totalPaid).toBe(30000);
+      expect(history.body.awaitingConfirmation).toBe(0);
+      const me = await get('/api/promoters/me', promoterToken);
+      expect(me.body.licenceFeePaid).toBe(true);
+      expect(me.body.licenceStatus).toBe('PENDING');
       const notes = await get('/api/notifications', promoterToken);
-      expect(notes.body.items.some((n: any) => n.type === 'PAYMENT')).toBe(true);
+      expect(notes.body.items.some((n: any) => n.type === 'PAYMENT' && /confirmed/i.test(n.title))).toBe(true);
     });
-    it('admin sees the pending application, must give a reason to reject, and can approve', async () => {
+
+    it('the licence fee cannot be started twice (409)', async () => {
+      expect((await post('/api/payments/checkout', promoterToken, {})).status).toBe(409);
+    });
+
+    it('administrator manages the fee: amount in FCFA, merchant wallets and validation', async () => {
+      const view = await get('/api/admin/licence-fee', admin);
+      expect(view.status).toBe(200);
+      expect(view.body.settings.amount).toBe(30000);
+      expect(view.body.settings.currency).toBe('XAF');
+      expect(view.body.limits.minFee).toBeGreaterThan(0);
+      expect(view.body.overview.currency).toBe('XAF');
+      expect(view.body.demoWalletsInUse.length).toBeGreaterThan(0); // shipped demo wallets still in use
+
+      expect((await patch('/api/admin/licence-fee', admin, { amount: 500 })).status).toBe(422);
+      expect((await patch('/api/admin/licence-fee', admin, { mtnNumber: '677123456' })).status).toBe(422);
+      expect((await patch('/api/admin/licence-fee', admin, { mtnEnabled: false, orangeEnabled: false })).status).toBe(400);
+
+      const updated = await patch('/api/admin/licence-fee', admin, { amount: 45000, mtnNumber: '+237 6 77 12 34 56', payeeName: 'Talent Connect Cameroun SARL' });
+      expect(updated.body.settings.amount).toBe(45000);
+      expect(updated.body.settings.mtnNumber).toBe('+237 677 12 34 56');
+      expect((await get('/api/payments/config', grace)).body.licenceFee).toBe(45000);
+
+      await patch('/api/admin/licence-fee', admin, { amount: 30000, mtnNumber: '+237 6 77 12 34 56' });
+      expect((await get('/api/payments/config', grace)).body.licenceFee).toBe(30000);
+      expect((await get('/api/admin/licence-fee', alex)).status).toBe(403);
+      expect((await patch('/api/admin/licence-fee', jordan, { amount: 20000 })).status).toBe(403);
+    });
+
+    it('administrator records a fee received outside the app (counter payment)', async () => {
+      const reg = await http.post('/api/auth/register/promoter').send({ firstName: 'Amina', lastName: 'Njoya', email: 'amina@bamendabeats.test', phone: '+237 6 77 55 44 33', password: 'Str0ngPass!', confirmPassword: 'Str0ngPass!', agencyName: 'Bamenda Beats', licenceNumber: 'LIC-MINAC-2026-900112' });
+      expect(reg.status).toBe(201);
+      cashToken = (await login('amina@bamendabeats.test', 'Str0ngPass!')).token;
+      cashPromoterId = (await get('/api/promoters/me', cashToken)).body.id;
+
+      // She declares a transfer whose transaction ID was already used by someone else: 409.
+      const checkout = await post('/api/payments/checkout', cashToken, {});
+      expect(checkout.status).toBe(201);
+      const duplicate = await declare(cashToken, checkout.body.payment.id, { transactionRef: correctedRef });
+      expect(duplicate.status).toBe(409);
+
+      const manual = await post('/api/admin/payments/manual', admin, { promoterId: cashPromoterId, method: 'OFFLINE', amount: 30000, payerName: 'Amina Njoya', note: 'Cash paid at the Douala office.' });
+      expect(manual.status).toBe(201);
+      expect(manual.body.status).toBe('SUCCESS');
+      expect(manual.body.method).toBe('OFFLINE');
+      expect(manual.body.providerRef).toMatch(/^TC-LIC-ADMIN-/);
+      expect((await get('/api/promoters/me', cashToken)).body.licenceFeePaid).toBe(true);
+      // Recording twice is refused, and other roles cannot record at all.
+      expect((await post('/api/admin/payments/manual', admin, { promoterId: cashPromoterId })).status).toBe(409);
+      expect((await post('/api/admin/payments/manual', jordan, { promoterId: cashPromoterId })).status).toBe(403);
+      expect((await post('/api/admin/payments/manual', admin, { promoterId: 'does-not-exist' })).status).toBe(404);
+    });
+
+    it('admin sees the licence submission, must give a reason to reject, and can approve', async () => {
       const pending = await get('/api/admin/promoters?status=PENDING', admin);
       expect(pending.body.items.some((p: any) => p.id === promoterId)).toBe(true);
       const detail = await get(`/api/admin/promoters/${promoterId}`, admin);
       expect(detail.body.history.length).toBeGreaterThan(0);
+      expect(detail.body.licenceFeePaid).toBe(true);
       expect((await patch(`/api/admin/promoters/${promoterId}/verify`, admin, { approved: false })).status).toBe(400);
       const approved = await patch(`/api/admin/promoters/${promoterId}/verify`, admin, { approved: true });
       expect(approved.body.licenceStatus).toBe('VERIFIED');
@@ -487,23 +633,28 @@ describe('Talent Connect API (e2e)', () => {
       const notes = await get('/api/notifications', promoterToken);
       expect(notes.body.items.some((n: any) => n.type === 'LICENCE' && /verified/i.test(n.title))).toBe(true);
       // now verified -> can publish
-      const ev = await post('/api/events', promoterToken, { title: 'Sahara Nights Opening', location: 'Dubai Marina', description: 'Opening night of a new desert-themed club series in Dubai.', eventDate: future(30), publish: true });
+      const ev = await post('/api/events', promoterToken, { title: 'Bamenda Nights Opening', location: 'Commercial Avenue, Bamenda', description: 'Opening night of a new live-music series in Bamenda.', eventDate: future(30), publish: true });
       expect(ev.status).toBe(201);
     });
-    it('cannot approve a promoter who has not paid, and Grace (unpaid) cannot submit for review', async () => {
+
+    it('cannot approve a promoter who has not paid, and Grace (fee to confirm) cannot submit for review', async () => {
       const g = await get('/api/promoters/me', grace);
       expect(g.body.licenceFeePaid).toBe(false);
       expect(g.body.licenceStatus).toBe('NOT_SUBMITTED');
+      // Her transfer is declared but still waiting for the administrator.
+      const queue = await get('/api/admin/payments?awaiting=true', admin);
+      expect(queue.body.items.some((p: any) => p.promoter.id === g.body.id)).toBe(true);
       expect((await patch(`/api/admin/promoters/${g.body.id}/verify`, admin, { approved: true })).status).toBe(409);
     });
-    it('admin rejects with reason; promoter receives it', async () => {
+
+    it('admin rejects a licence with a reason; the promoter resubmits without paying again', async () => {
       const victor = await login('victor.alves@talentconnect.dev');
       const v = await get('/api/promoters/me', victor.token);
-      const res = await patch(`/api/admin/promoters/${v.body.id}/verify`, admin, { approved: false, reason: 'Licence document is expired.' });
+      const res = await patch(`/api/admin/promoters/${v.body.id}/verify`, admin, { approved: false, reason: 'The licence document is expired.' });
       expect(res.body.licenceStatus).toBe('REJECTED');
       const after = await get('/api/promoters/me', victor.token);
       expect(after.body.licenceRejectionReason).toMatch(/expired/);
-      const resubmit = await http.post('/api/promoters/me/licence').set(auth(victor.token)).field('licenceNumber', 'PT-ENT-556121').field('licenceAuthority', 'Turismo de Portugal').field('licenceExpiry', future(200));
+      const resubmit = await http.post('/api/promoters/me/licence').set(auth(victor.token)).field('licenceNumber', 'LIC-MINAC-DEMO-2023-055613').field('licenceAuthority', 'Ministère des Arts et de la Culture (MINAC)').field('licenceExpiry', future(200));
       expect(resubmit.body.licenceStatus).toBe('PENDING');
     });
   });
@@ -558,6 +709,29 @@ describe('Talent Connect API (e2e)', () => {
       expect((await post('/api/ai/chat', alex, { message: 'x' })).status).toBe(422);
       expect((await http.delete('/api/ai/history').set(auth(alex))).status).toBe(200);
     });
+    it('names the offline adapter clearly while no key is configured', async () => {
+      const status = await get('/api/ai/status', alex);
+      expect(status.body.provider).toBe('offline');
+      expect(status.body.providerLabel).toBe('Offline assistant');
+      expect(status.body.live).toBe(false);
+    });
+    it('switches to Grok as soon as a server key is present', () => {
+      // Selection is pure, so it is checked here without calling a paid API.
+      expect(selectAiProvider(undefined, 'xai-test-key')).toBe('grok');
+      expect(selectAiProvider('grok', 'xai-test-key')).toBe('grok');
+      expect(selectAiProvider('XAI', 'xai-test-key')).toBe('grok');
+      expect(selectAiProvider('openrouter', 'sk-test')).toBe('openai-compatible');
+      expect(selectAiProvider('offline', 'xai-test-key')).toBe('offline');
+      expect(selectAiProvider('openrouter', '')).toBe('offline');
+      expect(selectAiProvider(undefined, '')).toBe('offline');
+
+      const readKey = (env: Record<string, string>) => resolveAiKey({ get: <T>(key: string) => env[key] as T | undefined });
+      expect(readKey({ XAI_API_KEY: 'xai-abc' })).toBe('xai-abc');
+      expect(readKey({ GROK_API_KEY: 'grok-abc' })).toBe('grok-abc');
+      expect(readKey({ AI_API_KEY: 'sk-1', XAI_API_KEY: 'xai-2' })).toBe('sk-1');
+      expect(readKey({ XAI_API_KEY: '   ' })).toBe('');
+      expect(readKey({})).toBe('');
+    });
     it('never exposes API keys', async () => {
       const res = await get('/api/ai/status', alex);
       expect(JSON.stringify(res.body)).not.toMatch(/key|secret/i);
@@ -608,7 +782,7 @@ describe('Talent Connect API (e2e)', () => {
     });
     it('refunds a successful payment', async () => {
       const pays = await get('/api/admin/payments?status=SUCCESS', admin);
-      const target = pays.body.items.find((p: any) => p.promoter.agencyName === 'Sahara Nights');
+      const target = pays.body.items.find((p: any) => p.promoter.agencyName === 'Bamenda Nights');
       const res = await http.post(`/api/admin/payments/${target.id}/refund`).set(auth(admin));
       expect(res.body.status).toBe('REFUNDED');
       expect((await http.post(`/api/admin/payments/${target.id}/refund`).set(auth(admin))).status).toBe(409);

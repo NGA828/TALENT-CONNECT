@@ -6,12 +6,12 @@ import { ArrowLeft, CheckCircle2, ExternalLink, XCircle } from 'lucide-react';
 import { api, errorMessage } from '@/lib/api';
 import { useApi } from '@/lib/use-api';
 import { useToast } from '@/lib/toast';
-import { formatDate, formatDateTime, formatMoney, humanize } from '@/lib/format';
+import { formatCameroonPhone, formatDate, formatDateTime, formatMoney, humanize } from '@/lib/format';
 import type { AdminPromoterDetail } from '@/lib/types';
 import { Card, CardHeader, DetailList } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert, QueryState, Skeleton } from '@/components/ui/feedback';
-import { StatusBadge } from '@/components/ui/badge';
+import { PaymentStatusBadge, StatusBadge } from '@/components/ui/badge';
 import { ConfirmDialog } from '@/components/ui/modal';
 import { ReasonModal } from './reason-modal';
 
@@ -63,7 +63,7 @@ function Content({ p, reload }: { p: AdminPromoterDetail; reload: () => Promise<
         )}
       </div>
 
-      {!p.licenceFeePaid && p.licenceStatus === 'PENDING' && <Alert tone="warning">The verification fee has not been paid, so this licence cannot be approved yet.</Alert>}
+      {!p.licenceFeePaid && p.licenceStatus === 'PENDING' && <Alert tone="warning">The licence fee has not been confirmed yet, so this licence cannot be approved. Confirm the Mobile Money transfer in <a href="/admin/licence-fees" className="font-semibold underline">Licence fees</a>.</Alert>}
       {p.licenceStatus === 'REJECTED' && p.licenceRejectionReason && <Alert tone="danger" title="Rejection reason">{p.licenceRejectionReason}</Alert>}
 
       <div className="grid grid-cols-[minmax(0,1fr)] gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
@@ -75,7 +75,7 @@ function Content({ p, reload }: { p: AdminPromoterDetail; reload: () => Promise<
                 { label: 'Licence number', value: p.licenceNumber ?? '—' },
                 { label: 'Issuing authority', value: p.licenceAuthority ?? '—' },
                 { label: 'Expiry date', value: p.licenceExpiry ? formatDate(p.licenceExpiry) : '—' },
-                { label: 'Fee', value: p.licenceFeePaid ? 'Paid' : 'Unpaid' },
+                { label: 'Licence fee', value: p.licenceFeePaid ? 'Confirmed' : 'Not confirmed' },
                 { label: 'Submitted', value: p.licenceSubmittedAt ? formatDateTime(p.licenceSubmittedAt) : '—' },
                 { label: 'Additional info', value: p.licenceInfo ?? '—' },
                 { label: 'Document', value: p.licenceDocumentUrl ? <a href={p.licenceDocumentUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-medium text-accent-700 hover:underline">Open document <ExternalLink className="size-3.5" /></a> : 'Not uploaded' },
@@ -94,7 +94,7 @@ function Content({ p, reload }: { p: AdminPromoterDetail; reload: () => Promise<
         <div className="space-y-6">
           <Card>
             <CardHeader title="Payments" />
-            {p.payments.length === 0 ? <p className="px-5 py-6 text-sm text-slate-500">No payments.</p> : <ul className="divide-y divide-slate-100">{p.payments.map((x) => <li key={x.id} className="flex items-center justify-between gap-3 px-5 py-3 text-sm"><span><span className="block font-medium text-slate-900">{formatMoney(x.amount, x.currency)}</span><span className="text-xs text-slate-500">{formatDate(x.createdAt)}{x.cardLast4 ? ` · •••• ${x.cardLast4}` : ''}</span></span><StatusBadge status={x.status} /></li>)}</ul>}
+            {p.payments.length === 0 ? <p className="px-5 py-6 text-sm text-slate-500">No licence-fee transfer yet.</p> : <ul className="divide-y divide-slate-100">{p.payments.map((x) => <li key={x.id} className="flex items-start justify-between gap-3 px-5 py-3 text-sm"><span className="min-w-0"><span className="block font-medium text-slate-900">{formatMoney(x.amount, x.currency)} · {x.method === 'MTN_MOMO' ? 'MTN MoMo' : x.method === 'ORANGE_MONEY' ? 'Orange Money' : x.method === 'OFFLINE' ? 'Counter payment' : 'Legacy record'}</span><span className="block truncate text-xs text-slate-500">{x.transactionRef ? `${x.transactionRef} · ` : ''}{formatDate(x.createdAt)}{x.payerPhone ? ` · ${formatCameroonPhone(x.payerPhone)}` : ''}</span></span><PaymentStatusBadge status={x.status} submitted={!!x.submittedAt} /></li>)}</ul>}
           </Card>
           <Card>
             <CardHeader title="Review history" />

@@ -26,7 +26,7 @@ export function AdminPromotersPage() {
 
   return (
     <>
-      <PageHeader title="Promoter verification" description="Review licences before promoters can publish events or issue contracts. A licence can only be approved after the verification fee is paid." />
+      <PageHeader title="Promoter verification" description="Review licences before promoters can publish events or issue contracts. A licence can only be approved after the licence fee is confirmed in Licence fees." />
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <Tabs label="Licence status" value={status} onChange={(v) => { setStatus(v); setPage(1); }} items={[{ value: 'PENDING', label: 'Awaiting review' }, { value: 'VERIFIED', label: 'Verified' }, { value: 'REJECTED', label: 'Rejected' }, { value: 'NOT_SUBMITTED', label: 'Not submitted' }, { value: 'ALL', label: 'All' }]} />
         <SearchInput aria-label="Search promoters" className="w-full sm:w-72" placeholder="Search agency, owner or licence" value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} />

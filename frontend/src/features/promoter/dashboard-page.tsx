@@ -43,7 +43,7 @@ export function PromoterDashboardPage() {
                 <Alert tone={d.agency.licenceStatus === 'REJECTED' ? 'danger' : 'warning'} title={d.agency.licenceStatus === 'PENDING' ? 'Licence under review' : d.agency.licenceStatus === 'REJECTED' ? 'Licence rejected' : 'Verification required'}>
                   <span className="flex flex-wrap items-center gap-2">
                     <ShieldAlert className="size-4" />
-                    {d.agency.licenceStatus === 'PENDING' ? 'You can draft events, but publishing and contracts unlock after an admin verifies your licence.' : d.agency.licenceStatus === 'REJECTED' ? (d.agency.rejectionReason ?? 'Please update your licence details.') : d.agency.licenceFeePaid ? 'Submit your licence details to start the review.' : 'Submit your licence and pay the verification fee to publish events.'}
+                    {d.agency.licenceStatus === 'PENDING' ? 'You can draft events, but publishing and contracts unlock after an admin verifies your licence.' : d.agency.licenceStatus === 'REJECTED' ? (d.agency.rejectionReason ?? 'Please update your licence details.') : d.agency.licenceFeePaid ? 'Submit your licence details to start the review.' : 'Submit your licence and pay the licence fee with MTN Mobile Money or Orange Money to publish events.'}
                     <Link href="/promoter/licence" className="font-semibold underline">Open licence</Link>
                   </span>
                 </Alert>

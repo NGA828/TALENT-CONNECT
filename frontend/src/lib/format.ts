@@ -19,6 +19,25 @@ export function formatMoney(amount?: number | null, currency = 'XAF') {
   return new Intl.NumberFormat('en-CM', { style: 'currency', currency, maximumFractionDigits: amount % 1 === 0 ? 0 : 2 }).format(amount);
 }
 
+/**
+ * Cameroonian mobile numbers use a closed nine-digit plan (+237, no trunk prefix).
+ * Accepts the ways users type them and prints `+237 6XX XX XX XX`.
+ */
+export function formatCameroonPhone(value?: string | null) {
+  if (!value) return '—';
+  const digits = value.replace(/\D/g, '');
+  const national = digits.startsWith('00237') ? digits.slice(5) : digits.startsWith('237') ? digits.slice(3) : digits;
+  if (!/^6\d{8}$/.test(national)) return value;
+  return `+237 ${national.slice(0, 3)} ${national.slice(3, 5)} ${national.slice(5, 7)} ${national.slice(7, 9)}`;
+}
+
+/** Canonical +2376XXXXXXXXX used by the API. */
+export function normalizeCameroonPhone(value: string) {
+  const digits = value.replace(/\D/g, '');
+  const national = digits.startsWith('00237') ? digits.slice(5) : digits.startsWith('237') ? digits.slice(3) : digits;
+  return `+237${national}`;
+}
+
 export function formatNumber(n?: number | null) {
   return new Intl.NumberFormat('en-CM').format(n ?? 0);
 }

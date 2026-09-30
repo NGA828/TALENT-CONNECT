@@ -3,7 +3,7 @@
  */
 import 'dotenv/config';
 import { PrismaLibSQL } from '@prisma/adapter-libsql';
-import { ContractStatus, EventStatus, LicenceStatus, MediaType, ModerationStatus, NotificationType, PaymentStatus, PrismaClient, ReviewAction, Role } from '@prisma/client';
+import { ContractStatus, EventStatus, LicenceStatus, MediaType, ModerationStatus, NotificationType, PaymentMethod, PaymentStatus, PrismaClient, ReviewAction, Role } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
@@ -13,6 +13,12 @@ const prisma = new PrismaClient({ adapter: new PrismaLibSQL({ url: process.env.D
 export const DEMO_PASSWORD = 'Password123!';
 export const ADMIN_EMAIL = 'admin@talentconnect.dev';
 export const ADMIN_PASSWORD = 'Admin@12345';
+
+/** Promoter licences in Cameroon are issued by the Ministry of Arts and Culture; these are demo values. */
+const LICENCE_AUTHORITY = 'Ministère des Arts et de la Culture (MINAC) — demo data, not an official licence';
+/** Transaction IDs as they appear in the MTN MoMo / Orange Money SMS receipts (demo values). */
+const mtnRef = (n: number) => `MP2509.${String(1000 + n).slice(-4)}.A0${1000 + n}`;
+const orangeRef = (n: number) => `PP2509.${String(4000 + n).slice(-4)}.C2${4000 + n}`;
 
 const HOUR = 36e5;
 const DAY = 864e5;
@@ -48,6 +54,7 @@ async function wipe() {
   await prisma.eventImage.deleteMany();
   await prisma.event.deleteMany();
   await prisma.portfolio.deleteMany();
+  await prisma.setting.deleteMany();
   await prisma.licenceReview.deleteMany();
   await prisma.talent.deleteMany();
   await prisma.promoter.deleteMany();
@@ -92,15 +99,29 @@ async function main() {
     talents[t.key] = { userId: u.id, talentId: u.talent!.id };
   }
 
+  // ───────────────────────── Licence-fee settings (managed by administrators) ─────────────────────────
+  // The fee, the Mobile Money wallets that collect it and the wording promoters see are all
+  // editable in Admin → Licence fees. The demo wallets must be replaced before any real use.
+  await prisma.setting.createMany({ data: [
+    { key: 'licenceFee.amount', value: '30000' },
+    { key: 'licenceFee.currency', value: 'XAF' },
+    { key: 'licenceFee.payeeName', value: 'Talent Connect Cameroun SARL' },
+    { key: 'licenceFee.mtnNumber', value: '+237677123456' },
+    { key: 'licenceFee.orangeNumber', value: '+237699123456' },
+    { key: 'licenceFee.mtnEnabled', value: 'true' },
+    { key: 'licenceFee.orangeEnabled', value: 'true' },
+    { key: 'licenceFee.instructions', value: 'Dial *126# (MTN MoMo) or #150# (Orange Money), choose Transfer, send the exact fee to the platform wallet below and keep the SMS receipt: the transaction ID is what confirms your payment.' },
+  ] });
+
   // ───────────────────────── Promoters ─────────────────────────
   const promoterDefs = [
-    { key: 'jordan', email: 'jordan.blake@talentconnect.dev', first: 'Jordan', last: 'Blake', phone: '+237 6 70 00 00 10', agency: 'Halcyon Live Entertainment', desc: 'Full-service live entertainment agency producing rooftop series, charity galas and brand activations across the Cameroon.', web: 'https://halcyonlive.example.com', loc: 'Douala, Cameroon', lic: 'CM-DEMO-NYC-ENT-2021-44871', auth: 'Demo issuing authority — not an official licence', status: LicenceStatus.VERIFIED, paid: true, joined: 130 },
-    { key: 'nadia', email: 'nadia.haddad@talentconnect.dev', first: 'Nadia', last: 'Haddad', phone: '+237 6 70 00 00 11', agency: 'Meridian Events Group', desc: 'Boutique events group for fashion houses and luxury brands in Yaoundé, Yaoundé and Bamenda.', web: 'https://meridianevents.example.com', loc: 'Yaoundé, Cameroon', lic: 'CM-DEMO-FR-EVT-7730192', auth: 'Demo issuing authority — not an official licence', status: LicenceStatus.VERIFIED, paid: true, joined: 110 },
-    { key: 'marcus', email: 'marcus.webb@talentconnect.dev', first: 'Marcus', last: 'Webb', phone: '+237 6 70 00 00 12', agency: 'Afterglow Festivals', desc: 'Organisers of the Afterglow Festival series celebrating Cameroonian music, street culture and film.', web: 'https://afterglowfest.example.com', loc: 'Kribi, Cameroon', lic: 'CM-DEMO-GH-FEST-2019-00912', auth: 'Demo issuing authority — not an official licence', status: LicenceStatus.VERIFIED, paid: true, joined: 95 },
-    { key: 'elena', email: 'elena.petrova@talentconnect.dev', first: 'Elena', last: 'Petrova', phone: '+237 6 70 00 00 13', agency: 'Northlight Productions', desc: 'Bertoua production company for concerts, club nights and live broadcast events.', web: 'https://northlight.example.com', loc: 'Bertoua, Cameroon', lic: 'CM-DEMO-DE-BER-2024-118822', auth: 'Demo issuing authority — not an official licence', status: LicenceStatus.PENDING, paid: true, joined: 11 },
-    { key: 'victor', email: 'victor.alves@talentconnect.dev', first: 'Victor', last: 'Alves', phone: '+237 6 70 00 00 14', agency: 'Orbit Entertainment', desc: 'Limbe-based agency programming beach clubs, weddings and private celebrations.', web: 'https://orbitent.example.com', loc: 'Limbe, Cameroon', lic: 'CM-DEMO-PT-ENT-556120', auth: 'Demo issuing authority — not an official licence', status: LicenceStatus.PENDING, paid: true, joined: 9 },
-    { key: 'tom', email: 'tom.fischer@talentconnect.dev', first: 'Tom', last: 'Fischer', phone: '+237 6 70 00 00 15', agency: 'Brightside Promotions', desc: 'Douala promotions company focused on nightlife and pop-up events.', web: null, loc: 'Douala, Cameroon', lic: 'CM-DEMO-IL-PRM-0099', auth: 'Demo issuing authority — not an official licence', status: LicenceStatus.REJECTED, paid: true, joined: 25 },
-    { key: 'grace', email: 'grace.lin@talentconnect.dev', first: 'Grace', last: 'Lin', phone: '+237 6 70 00 00 16', agency: 'Lantern Collective', desc: null, web: null, loc: 'Maroua, Cameroon', lic: 'CM-DEMO-CA-EVT-2026-3321', auth: null, status: LicenceStatus.NOT_SUBMITTED, paid: false, joined: 2 },
+    { key: 'jordan', email: 'jordan.blake@talentconnect.dev', first: 'Jordan', last: 'Blake', phone: '+237 6 70 00 00 10', agency: 'Halcyon Live Entertainment', desc: 'Full-service live entertainment agency producing rooftop series, charity galas and brand activations across Cameroon.', web: 'https://halcyonlive.example.com', loc: 'Douala, Cameroon', lic: 'LIC-MINAC-DEMO-2021-044871', auth: LICENCE_AUTHORITY, status: LicenceStatus.VERIFIED, paid: true, joined: 130 },
+    { key: 'nadia', email: 'nadia.haddad@talentconnect.dev', first: 'Nadia', last: 'Haddad', phone: '+237 6 70 00 00 11', agency: 'Meridian Events Group', desc: 'Boutique events group for fashion houses and luxury brands in Yaoundé, Douala and Bamenda.', web: 'https://meridianevents.example.com', loc: 'Yaoundé, Cameroon', lic: 'LIC-MINAC-DEMO-2022-077301', auth: LICENCE_AUTHORITY, status: LicenceStatus.VERIFIED, paid: true, joined: 110 },
+    { key: 'marcus', email: 'marcus.webb@talentconnect.dev', first: 'Marcus', last: 'Webb', phone: '+237 6 70 00 00 12', agency: 'Afterglow Festivals', desc: 'Organisers of the Afterglow Festival series celebrating Cameroonian music, street culture and film.', web: 'https://afterglowfest.example.com', loc: 'Kribi, Cameroon', lic: 'LIC-MINAC-DEMO-2019-000912', auth: LICENCE_AUTHORITY, status: LicenceStatus.VERIFIED, paid: true, joined: 95 },
+    { key: 'elena', email: 'elena.petrova@talentconnect.dev', first: 'Elena', last: 'Petrova', phone: '+237 6 70 00 00 13', agency: 'Northlight Productions', desc: 'Bertoua production company for concerts, club nights and live broadcast events.', web: 'https://northlight.example.com', loc: 'Bertoua, Cameroon', lic: 'LIC-MINAC-DEMO-2024-118822', auth: LICENCE_AUTHORITY, status: LicenceStatus.PENDING, paid: true, joined: 11 },
+    { key: 'victor', email: 'victor.alves@talentconnect.dev', first: 'Victor', last: 'Alves', phone: '+237 6 70 00 00 14', agency: 'Orbit Entertainment', desc: 'Limbe-based agency programming beach clubs, weddings and private celebrations.', web: 'https://orbitent.example.com', loc: 'Limbe, Cameroon', lic: 'LIC-MINAC-DEMO-2023-055612', auth: LICENCE_AUTHORITY, status: LicenceStatus.PENDING, paid: true, joined: 9 },
+    { key: 'tom', email: 'tom.fischer@talentconnect.dev', first: 'Tom', last: 'Fischer', phone: '+237 6 70 00 00 15', agency: 'Brightside Promotions', desc: 'Douala promotions company focused on nightlife and pop-up events.', web: null, loc: 'Douala, Cameroon', lic: 'LIC-MINAC-DEMO-2024-000099', auth: LICENCE_AUTHORITY, status: LicenceStatus.REJECTED, paid: true, joined: 25 },
+    { key: 'grace', email: 'grace.lin@talentconnect.dev', first: 'Grace', last: 'Lin', phone: '+237 6 70 00 00 16', agency: 'Lantern Collective', desc: null, web: null, loc: 'Maroua, Cameroon', lic: 'LIC-MINAC-DEMO-2026-003321', auth: null, status: LicenceStatus.NOT_SUBMITTED, paid: false, joined: 2 },
   ];
   const promoters: Record<string, { userId: string; promoterId: string }> = {};
   for (const p of promoterDefs) {
@@ -110,7 +131,7 @@ async function main() {
         promoter: {
           create: {
             agencyName: p.agency, agencyDescription: p.desc, website: p.web, location: p.loc, licenceNumber: p.lic, licenceAuthority: p.auth,
-            licenceExpiry: p.auth ? at(400) : null, licenceInfo: p.auth ? 'Annual entertainment and event promotion licence.' : null,
+            licenceExpiry: p.auth ? at(400) : null, licenceInfo: p.auth ? 'Annual licence to promote shows and events (licence d’entrepreneur de spectacle).' : null,
             licenceStatus: p.status, licenceFeePaid: p.paid,
             licenceSubmittedAt: p.status === LicenceStatus.NOT_SUBMITTED ? null : ago(p.joined - 1),
             licenceReviewedAt: p.status === LicenceStatus.VERIFIED || p.status === LicenceStatus.REJECTED ? ago(p.joined - 3) : null,
@@ -128,11 +149,41 @@ async function main() {
       if (p.status === LicenceStatus.VERIFIED) await prisma.licenceReview.create({ data: { promoterId: u.promoter!.id, adminId: admin.id, action: ReviewAction.APPROVED, reason: 'Licence confirmed with the issuing authority.', createdAt: ago(p.joined - 3) } });
       if (p.status === LicenceStatus.REJECTED) await prisma.licenceReview.create({ data: { promoterId: u.promoter!.id, adminId: admin.id, action: ReviewAction.REJECTED, reason: u.promoter!.licenceRejectionReason, createdAt: ago(p.joined - 3) } });
     }
+    // Licence fee (30,000 FCFA) paid with MTN Mobile Money (*126#) or Orange Money (#150#) and
+    // confirmed by the administrator who holds the merchant wallet.
+    const wallet = p.key === 'marcus' || p.key === 'victor'
+      ? { method: PaymentMethod.ORANGE_MONEY, label: 'Orange Money', ref: orangeRef(p.joined) }
+      : { method: PaymentMethod.MTN_MOMO, label: 'MTN MoMo', ref: mtnRef(p.joined) };
+    const payerPhone = wallet.method === PaymentMethod.ORANGE_MONEY ? `+2376990000${String(p.joined).padStart(2, '0')}` : p.phone.replace(/\s/g, '');
     if (p.paid) {
       if (p.key === 'nadia' || p.key === 'tom') {
-        await prisma.payment.create({ data: { promoterId: u.promoter!.id, amount: 30000, currency: 'XAF', status: PaymentStatus.FAILED, provider: 'sandbox', providerRef: `sbx_ch_${p.key}0001`, cardBrand: 'Visa', cardLast4: '0002', failureReason: 'Your card was declined by the issuing bank.', description: `Promoter licence fee – ${p.agency}`, createdAt: ago(p.joined - 1, 2) } });
+        await prisma.payment.create({ data: {
+          promoterId: u.promoter!.id, amount: 30000, currency: 'XAF', status: PaymentStatus.FAILED,
+          method: wallet.method, provider: 'manual', providerRef: `TC-LIC-${p.key.slice(0, 3).toUpperCase()}0001`,
+          transactionRef: `${wallet.ref.slice(0, -1)}9`, payerName: `${p.first} ${p.last}`, payerPhone,
+          failureReason: `No ${wallet.label} transfer with this transaction ID was received on the platform wallet.`,
+          reviewNote: 'Transaction ID not found on the merchant account: asked the promoter to check the SMS receipt.',
+          reviewedById: admin.id, description: `Licence fee – ${p.agency}`,
+          submittedAt: ago(p.joined - 1, 2), createdAt: ago(p.joined - 1, 2),
+        } });
       }
-      await prisma.payment.create({ data: { promoterId: u.promoter!.id, amount: 30000, currency: 'XAF', status: PaymentStatus.SUCCESS, provider: 'sandbox', providerRef: `sbx_ch_${p.key}7f3a9c21`, cardBrand: p.key === 'marcus' ? 'Mastercard' : 'Visa', cardLast4: p.key === 'marcus' ? '4444' : '4242', description: `Promoter licence fee – ${p.agency}`, createdAt: ago(p.joined - 1) } });
+      await prisma.payment.create({ data: {
+        promoterId: u.promoter!.id, amount: 30000, currency: 'XAF', status: PaymentStatus.SUCCESS,
+        method: wallet.method, provider: 'manual', providerRef: `TC-LIC-${p.key.slice(0, 3).toUpperCase()}7F3A`,
+        transactionRef: wallet.ref, payerName: `${p.first} ${p.last}`, payerPhone,
+        description: `Licence fee – ${p.agency}`, submittedAt: ago(p.joined - 1), confirmedAt: ago(p.joined - 2),
+        reviewedById: admin.id, reviewNote: `${wallet.label} transfer received on the platform merchant wallet.`,
+        createdAt: ago(p.joined - 1),
+      } });
+    }
+    if (p.key === 'grace') {
+      // Declared but not yet confirmed: this is the queue in Admin → Licence fees.
+      await prisma.payment.create({ data: {
+        promoterId: u.promoter!.id, amount: 30000, currency: 'XAF', status: PaymentStatus.PENDING,
+        method: PaymentMethod.MTN_MOMO, provider: 'manual', providerRef: 'TC-LIC-GRA7F3A',
+        transactionRef: mtnRef(2), payerName: `${p.first} ${p.last}`, payerPhone: p.phone.replace(/\s/g, ''),
+        description: `Licence fee – ${p.agency}`, submittedAt: ago(0, 20), createdAt: ago(0, 20),
+      } });
     }
   }
 
@@ -310,11 +361,13 @@ async function main() {
   await notif(J, NotificationType.EVENT, 'New talent enrollment', 'Priya Sharma enrolled in "Halcyon Summer Sessions – Closing Night".', 96, false, '/promoter/events');
   await notif(J, NotificationType.CONTRACT, 'Contract declined', 'Alex Rivera declined the contract for "Neon Rain Fashion Showcase".', 96, false, '/promoter/contracts');
   await notif(J, NotificationType.LICENCE, 'Your agency is verified', 'You can now publish events and create contracts.', 3000, true, '/promoter/licence');
-  await notif(J, NotificationType.PAYMENT, 'Payment successful', 'Your licence fee of 30,000 FCFA was received.', 3100, true, '/promoter/payments');
+  await notif(J, NotificationType.PAYMENT, 'Licence fee confirmed', 'Your MTN MoMo transfer of 30,000 FCFA was confirmed.', 3100, true, '/promoter/payments');
   await notif(admin.id, NotificationType.ADMIN, 'Promoter licence awaiting review', 'Northlight Productions submitted a licence for verification.', 250, false, `/admin/promoters/${promoters.elena.promoterId}`);
   await notif(admin.id, NotificationType.ADMIN, 'Promoter licence awaiting review', 'Orbit Entertainment submitted a licence for verification.', 200, false, `/admin/promoters/${promoters.victor.promoterId}`);
   await notif(promoters.tom.userId, NotificationType.LICENCE, 'Licence verification rejected', 'Your licence was rejected. Update your details and resubmit.', 500, true, '/promoter/licence');
-  await notif(promoters.grace.userId, NotificationType.LICENCE, 'Next step: verify your agency', 'Submit your licence and pay the licence fee so an administrator can verify your agency.', 48, false, '/promoter/licence');
+  await notif(promoters.grace.userId, NotificationType.LICENCE, 'Next step: verify your agency', 'Submit your licence details so an administrator can verify your agency.', 48, false, '/promoter/licence');
+  await notif(promoters.grace.userId, NotificationType.PAYMENT, 'Transfer submitted', `We received your MTN MoMo transaction ${mtnRef(2)}. An administrator confirms it before your licence goes for review.`, 20, false, '/promoter/payments');
+  await notif(admin.id, NotificationType.ADMIN, 'Licence fee to confirm', `Grace Lin transferred 30,000 FCFA with MTN MoMo (transaction ${mtnRef(2)}).`, 20, false, '/admin/licence-fees');
 
   console.log('✔ Seed complete');
   console.log(`  Admin     ${ADMIN_EMAIL} / ${ADMIN_PASSWORD}`);

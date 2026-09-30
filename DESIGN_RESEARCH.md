@@ -113,7 +113,7 @@ Before designing each major screen I ran screen-specific searches on Dribbble (a
 - **Links:** https://dribbble.com/search/payment-dashboard
 - **Observations:** Payment pages combine summary cards with a transaction table using status chips; verification flows use a short stepper.
 - **Components inspired:** summary cards, transactions table, three-step stepper (Details → Fee → Review), payment dialog.
-- **Decisions:** the licence page is a stepper plus form plus review history; the payment dialog always shows a **Sandbox mode** banner with clickable test cards, shows declined cards as a clear failure with a retry, and stores only brand and last four digits. The payments page lists real payments from the API with status filters.
+- **Decisions:** the licence page is a stepper plus form plus review history; the payment dialog is Cameroon-specific — it names the fee in FCFA, shows the USSD code (`*126#` MTN MoMo, `#150#` Orange Money) and the merchant wallet administrators manage, collects the wallet number and the transaction ID from the SMS receipt with an optional screenshot, and states plainly that an administrator confirms the transfer. The payments page lists real transfers from the API with status filters ("Awaiting confirmation" until an administrator has checked the wallet); the admin console owns the amount, the wallets and the confirmation queue.
 
 ## 13. AI assistant
 

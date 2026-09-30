@@ -1,9 +1,9 @@
 import { Controller, Get } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { EventStatus, LicenceStatus, ModerationStatus, UserStatus } from '@prisma/client';
 import { splitSkills } from '../auth/auth.service';
 import { EVENT_CATEGORIES, GENDERS, SPECIALIZATIONS } from '../common/constants';
 import { Public } from '../common/decorators';
+import { LicenceFeeService } from '../payments/licence-fee.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Public()
@@ -11,13 +11,22 @@ import { PrismaService } from '../prisma/prisma.service';
 export class PublicController {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly config: ConfigService,
+    private readonly licenceFee: LicenceFeeService,
   ) {}
 
-  /** Static lists used by registration / filter forms. */
+  /** Static lists used by registration / filter forms, plus the administrator-managed licence fee. */
   @Get('meta')
-  meta() {
-    return { specializations: SPECIALIZATIONS, genders: GENDERS, eventCategories: EVENT_CATEGORIES, licenceFee: Number(this.config.get('LICENCE_FEE_AMOUNT') ?? 30000), currency: this.config.get('PAYMENT_CURRENCY') ?? 'XAF' };
+  async meta() {
+    const config = await this.licenceFee.publicConfig({ name: 'manual', automatic: false });
+    return {
+      specializations: SPECIALIZATIONS,
+      genders: GENDERS,
+      eventCategories: EVENT_CATEGORIES,
+      licenceFee: config.licenceFee,
+      currency: config.currency,
+      // How the licence fee is paid in Cameroon: MTN Mobile Money (*126#) or Orange Money (#150#).
+      licenceFeeMethods: config.methods,
+    };
   }
 
   /** Data for the public landing page – aggregate numbers and a safe subset of public profiles/events. */

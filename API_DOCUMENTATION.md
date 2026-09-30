@@ -175,34 +175,38 @@ Roles: TALENT, PROMOTER. Users can only read and write their own conversations.
 
 Notification types: `CONTRACT, EVENT, LICENCE, PAYMENT, MESSAGE, RATING, ADMIN`.
 
-## payments
+## payments — licence fee in Cameroon
 
-Role: PROMOTER. Provider is selected by `PAYMENT_PROVIDER`; the bundled `sandbox` provider is clearly flagged in responses (`sandbox: true`).
+Role: PROMOTER. The licence fee is charged in CFA francs (XAF / FCFA) and collected with **Mobile Money**: MTN MoMo (`*126#`) or Orange Money (`#150#`) on the merchant wallets an administrator manages in `Admin → Licence fees`. The bundled `manual` adapter (`PAYMENT_PROVIDER=manual`) leaves the confirmation to an administrator; a live aggregator (Campay, MeSomb, Notch Pay, MTN MoMo API, Orange Money API, Flutterwave) can implement `MobileMoneyProvider` and settle transfers automatically.
 
 | Method & path | Description |
 | --- | --- |
-| `GET /payments/config` | `{ provider, sandbox, currency, licenceFee, testCards[] }` (test cards only in sandbox mode). |
-| `GET /payments` | Paginated history (`status` filter) plus `totalPaid`, `licence {licenceFeePaid, licenceStatus}` and `config`. |
-| `POST /payments/checkout` | Creates (or reuses) a pending licence-fee payment → `{ payment, config }`. 409 if the fee is already paid. |
-| `POST /payments/:id/pay` | `{ cardholderName, cardNumber, expMonth, expYear, cvc }`. Returns `{ payment, licence }`. A **declined card is a normal 200 response** with `payment.status = "FAILED"` and `failureReason`; the payment can be retried. 403 for someone else's payment, 409 if already paid, 422 for invalid card data. Only brand and last four digits are stored. |
+| `GET /payments/config` | `{ provider, automatic, currency, licenceFee, payeeName, instructions, methods[], suggestedPayerPhone? }` where each method is `{ value: MTN_MOMO\|ORANGE_MONEY, label, shortLabel, ussd, prefixes, enabled, number }`. The fee and numbers come from the settings administrators edit. |
+| `GET /payments` | Paginated history (`status`, `method` filters) plus `totalPaid`, `awaitingConfirmation`, `licence {licenceFeePaid, licenceStatus}` and `config`. |
+| `POST /payments/checkout` | Creates (or reuses) the pending fee record and returns its `providerRef` (e.g. `TC-LIC-8F3A21`) — the reference the promoter quotes in the transfer. 409 when the fee is already confirmed or a transfer is already waiting for confirmation. |
+| `POST /payments/:id/submit` | Multipart: `method (MTN_MOMO\|ORANGE_MONEY)`, `payerName`, `payerPhone` (+237 6XX XX XX XX), `transactionRef` (transaction ID from the SMS receipt) and an optional `receipt` file (image or PDF, 10 MB). Returns `{ payment, licence }`. With the manual adapter the payment stays `PENDING` until an administrator confirms it; the mobile number must be Cameroonian (422 otherwise), a transaction ID already declared elsewhere is refused (409), and a rejected transfer can be resubmitted with a corrected ID. |
 | `GET /payments/:id` | Own payment only. |
+
+Payment records store the method, payer name and number, transaction ID, optional receipt and the administrator's review note. Card data is never involved.
 
 ## ai
 
-Role: TALENT. The provider key stays on the server. `POST /ai/chat` is throttled (`AI_RATE_LIMIT`).
+Role: TALENT. The model answers through Grok (xAI) by default; the API key stays on the server (never in a response or the browser). `POST /ai/chat` is throttled (`AI_RATE_LIMIT`).
+
+Configuration (backend `.env`): `XAI_API_KEY` (or `AI_API_KEY` / `GROK_API_KEY`) switches the assistant on, `AI_PROVIDER` chooses the adapter (`grok` — the default — `openai-compatible`, or `offline`), `AI_MODEL` defaults to `grok-4.7`, `AI_BASE_URL` defaults to `https://api.x.ai/v1`, `AI_MAX_TOKENS` / `AI_TIMEOUT_MS` bound each call. With no key configured the platform serves the offline template assistant instead and `/ai/status` says so. Provider problems (rejected key, rate limit, unknown model, timeout) return 503 with a plain-language message.
 
 | Method & path | Description |
 | --- | --- |
-| `GET /ai/status` | `{ live, provider, model }` – `live:false` means the offline template assistant. |
+| `GET /ai/status` | `{ live, provider, providerLabel, model, mode }` – `live:false` (mode `offline`) means the offline template assistant; `providerLabel` is the vendor shown in the UI (e.g. "Grok (xAI)"). |
 | `GET /ai/history` | Your saved conversation (array). |
 | `DELETE /ai/history` | Clear it. |
-| `POST /ai/chat` | `{ message (2–2000 chars), task?: IMPROVE_BIO\|PORTFOLIO_DESCRIPTION\|MESSAGE_DRAFT\|EVENT_ADVICE\|SKILLS_PRESENTATION\|GENERAL, eventId? }` → `{ reply, task, live, provider, model }`. The reply is grounded in your profile (and the event, for `EVENT_ADVICE`). |
+| `POST /ai/chat` | `{ message (2–2000 chars), task?: IMPROVE_BIO\|PORTFOLIO_DESCRIPTION\|MESSAGE_DRAFT\|EVENT_ADVICE\|SKILLS_PRESENTATION\|GENERAL, eventId? }` → `{ reply, task, live, provider, providerLabel, model, mode }`. The reply is grounded in your profile (and the event, for `EVENT_ADVICE`); the licence fee it mentions is the platform's own FCFA charge paid with MTN MoMo or Orange Money, not a government fee. |
 
 ## public
 
 | Method & path | Access | Description |
 | --- | --- | --- |
-| `GET /public/meta` | public | `{ specializations, genders, eventCategories, licenceFee, currency }`. |
+| `GET /public/meta` | public | `{ specializations, genders, eventCategories, licenceFee, currency, licenceFeeMethods[] }` — the fee and Mobile Money wallets administrators manage. |
 | `GET /public/landing` | public | Live statistics, featured upcoming events and showcase work for the landing page. Contains no private data. |
 
 ## admin
@@ -217,12 +221,17 @@ All routes: ADMIN.
 | `PATCH /admin/users/:id/status` | `{ status: ACTIVE\|SUSPENDED\|DEACTIVATED, reason? }`. Admin accounts and your own account cannot be changed. Non-active statuses revoke tokens and notify the user. |
 | `GET /admin/promoters` | Query `status (licence), q`. |
 | `GET /admin/promoters/:id` | Licence details, payments, events, review history. |
-| `PATCH /admin/promoters/:id/verify` | `{ approved: boolean, reason? }`. Only applications in `PENDING` can be reviewed (409 otherwise). Approval requires the fee to be paid (409); rejection requires a reason (400). Writes a `LicenceReview` row and notifies the promoter. |
+| `PATCH /admin/promoters/:id/verify` | `{ approved: boolean, reason? }`. Only applications in `PENDING` can be reviewed (409 otherwise). Approval requires the licence fee to be confirmed (409); rejection requires a reason (400). Writes a `LicenceReview` row and notifies the promoter. |
 | `GET /admin/portfolios` | Query `status (ACTIVE\|FLAGGED\|REMOVED), type, q`. |
 | `PATCH /admin/portfolios/:id/moderate` | `{ action: FLAG\|REMOVE\|RESTORE, note? }`. `FLAG` and `REMOVE` require a note (400); the talent is notified. |
 | `GET /admin/events` | Query `status, q`. |
-| `GET /admin/payments` | Query `status`. |
-| `POST /admin/payments/:id/refund` | Refunds a successful payment (status `REFUNDED`). |
+| `GET /admin/licence-fee` | The fee administrators own: `{ settings, limits, demoWalletsInUse, overview, promoters }`. `overview` gives collected / refunded / awaiting amounts and counts; `promoters` lists the agencies that still owe the fee. |
+| `PATCH /admin/licence-fee` | `{ amount, payeeName, mtnNumber, orangeNumber, mtnEnabled, orangeEnabled, instructions }`, all optional. The amount is a whole FCFA value between 1 000 and 5 000 000 (422 otherwise), the numbers must be Cameroonian mobiles (422) and both services cannot be disabled at once (400). |
+| `GET /admin/payments` | Query `status`, `method`, `q` (agency, payer, transaction ID, reference) and `awaiting=true` for the confirmation queue. Rows include the promoter contact. |
+| `POST /admin/payments/manual` | Records a fee received outside the app: `{ promoterId, method?: OFFLINE\|MTN_MOMO\|ORANGE_MONEY, amount?, payerName?, payerPhone?, transactionRef?, note? }`. Creates a confirmed payment, marks the fee paid and notifies the promoter. 409 when the fee is already settled, 404 for an unknown promoter. |
+| `POST /admin/payments/:id/confirm` | Confirms a declared transfer: `{ note? }`. Only a `PENDING` transfer that a promoter submitted can be confirmed (409). Sets the fee as paid, which moves a complete licence into review. |
+| `POST /admin/payments/:id/reject` | `{ reason }`. Marks the transfer `FAILED`, stores the reason and notifies the promoter so they can correct the transaction ID and resubmit. |
+| `POST /admin/payments/:id/refund` | `{ note? }`. Refunds a confirmed payment (status `REFUNDED`); the fee becomes outstanding again and a licence still under review returns to `NOT_SUBMITTED`. The money is returned from the MTN MoMo / Orange Money merchant wallet. |
 | `GET /admin/reports/:type` | `type` = `users\|events\|contracts\|payments\|verifications\|moderation`. Query `from, to` (dates) and `format=json\|csv`. JSON: `{ type, title, generatedAt, total, columns, rows }`; CSV is returned as an attachment. |
 
 ## Status enums
@@ -231,7 +240,8 @@ All routes: ADMIN.
 | --- | --- |
 | Contract | `PENDING, ACTIVE, COMPLETED, CANCELLED, REJECTED` |
 | Licence | `NOT_SUBMITTED, PENDING, VERIFIED, REJECTED` |
-| Payment | `PENDING, SUCCESS, FAILED, REFUNDED` |
+| Payment | `PENDING, SUCCESS, FAILED, REFUNDED` (`PENDING` with `submittedAt` = waiting for administrator confirmation) |
+| Payment method | `MTN_MOMO, ORANGE_MONEY, OFFLINE` |
 | Event | `DRAFT, PUBLISHED, ONGOING, COMPLETED, CANCELLED` |
 | Moderation | `ACTIVE, FLAGGED, REMOVED` |
 | User | `ACTIVE, SUSPENDED, DEACTIVATED` |

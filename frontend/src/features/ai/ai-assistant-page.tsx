@@ -97,7 +97,7 @@ export function AiAssistantPage() {
       {status.data && (
         <Alert tone={status.data.live ? 'success' : 'info'} className="mb-4">
           <span className="flex items-start gap-2"><Info className="mt-0.5 size-4 shrink-0" />
-            {status.data.live ? <span>Connected to a live AI model (<strong>{status.data.model}</strong>). The API key stays on the server and is never sent to your browser.</span> : <span><strong>Offline assistant.</strong> No external AI provider is configured, so replies come from the built-in template writer. It works with your profile details but is less flexible than a live model.</span>}
+            {status.data.live ? <span>Connected to <strong>{status.data.providerLabel ?? status.data.provider}</strong> (<strong>{status.data.model}</strong>). The API key stays on the server and is never sent to your browser.</span> : <span><strong>Offline assistant.</strong> No external AI provider is configured, so replies come from the built-in template writer. It works with your profile details but is less flexible than a live model.</span>}
           </span>
         </Alert>
       )}

@@ -4,7 +4,7 @@ import { useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Check, CreditCard, FileText, Paperclip, ShieldCheck } from 'lucide-react';
+import { Check, FileText, Paperclip, ShieldCheck, Smartphone } from 'lucide-react';
 import { api, errorMessage } from '@/lib/api';
 import { applyServerErrors } from '@/lib/hooks';
 import { cn } from '@/lib/cn';
@@ -18,7 +18,7 @@ import { Input, Textarea } from '@/components/ui/form';
 import { Alert, QueryState, SkeletonRows } from '@/components/ui/feedback';
 import { StatusBadge } from '@/components/ui/badge';
 import { PayLicenceModal } from '@/features/payments/pay-licence-modal';
-import { SandboxBanner } from '@/features/payments/sandbox-banner';
+import { MobileMoneyBanner } from '@/features/payments/mobile-money-banner';
 import { useAuth } from '@/features/auth/auth-context';
 
 const schema = z.object({
@@ -38,13 +38,13 @@ export function LicencePage() {
 
   return (
     <>
-      <PageHeader title="Licence verification" description="Only verified promoters can publish events and issue contracts. Submit your licence, pay the verification fee and we will review it." />
+      <PageHeader title="Licence verification" description="Only verified promoters can publish events and issue contracts. Submit your licence, pay the licence fee with MTN Mobile Money or Orange Money and we will review it." />
       <QueryState state={profile} skeleton={<SkeletonRows rows={5} />}>
         {(p) => {
           const hasDetails = !!(p.licenceNumber && p.licenceAuthority && p.licenceExpiry);
           const steps = [
             { label: 'Licence details', done: hasDetails },
-            { label: 'Verification fee', done: p.licenceFeePaid },
+            { label: 'Mobile Money fee', done: p.licenceFeePaid },
             { label: 'Admin review', done: p.licenceStatus === 'VERIFIED' },
           ];
           const editable = p.licenceStatus !== 'VERIFIED';
@@ -66,12 +66,12 @@ export function LicencePage() {
                 </div>
                 <aside className="space-y-6">
                   <Card>
-                    <CardHeader title="Verification fee" />
+                    <CardHeader title="Licence fee" />
                     <div className="space-y-3 p-5">
-                      {config.data && <SandboxBanner config={config.data} />}
+                      {config.data && <MobileMoneyBanner config={config.data} />}
                       <p className="font-display text-3xl font-extrabold text-slate-900">{config.data ? formatMoney(config.data.licenceFee, config.data.currency) : '—'}</p>
-                      <p className="text-sm text-slate-600">One-time fee covering the manual review of your licence. It is not refunded if the licence is rejected, but you can resubmit without paying again.</p>
-                      {p.licenceFeePaid ? <p className="flex items-center gap-2 text-sm font-medium text-emerald-700"><Check className="size-4" /> Fee paid</p> : <Button className="w-full" onClick={() => setPaying(true)}><CreditCard className="size-4" /> Pay verification fee</Button>}
+                      <p className="text-sm text-slate-600">One-time fee paid with MTN Mobile Money or Orange Money. An administrator confirms the transfer, and it is not refunded if the licence is rejected — you can resubmit without paying again.</p>
+                      {p.licenceFeePaid ? <p className="flex items-center gap-2 text-sm font-medium text-emerald-700"><Check className="size-4" /> Fee confirmed</p> : <Button className="w-full" onClick={() => setPaying(true)}><Smartphone className="size-4" /> Pay with Mobile Money</Button>}
                     </div>
                   </Card>
                   <Card>
@@ -104,7 +104,7 @@ function StatusBanner({ p }: { p: PromoterProfile }) {
   if (p.licenceStatus === 'VERIFIED') return <Alert tone="success" title="Licence verified">Your agency was verified on {formatDate(p.licenceReviewedAt)}. You can publish events and issue contracts.</Alert>;
   if (p.licenceStatus === 'PENDING') return <Alert tone="info" title="Under review">Submitted {formatDate(p.licenceSubmittedAt)}. An administrator is reviewing your licence. You will be notified as soon as there is a decision.</Alert>;
   if (p.licenceStatus === 'REJECTED') return <Alert tone="danger" title="Licence rejected">{p.licenceRejectionReason ?? 'The licence could not be verified.'} Update your details below{p.licenceFeePaid ? ' and save to resubmit. You do not need to pay again' : ''}.</Alert>;
-  return <Alert tone="warning" title="Not submitted yet">{!hasDetails ? 'Enter your licence details below. ' : ''}{!p.licenceFeePaid ? 'Then pay the verification fee. ' : ''}The review starts automatically once both are done.</Alert>;
+  return <Alert tone="warning" title="Not submitted yet">{!hasDetails ? 'Enter your licence details below. ' : ''}{!p.licenceFeePaid ? 'Then send the licence fee with MTN Mobile Money or Orange Money and submit the transaction ID. ' : ''}The review starts automatically once both are done.</Alert>;
 }
 
 function LicenceForm({ p, editable, onSaved }: { p: PromoterProfile; editable: boolean; onSaved: () => void }) {
@@ -152,7 +152,7 @@ function LicenceForm({ p, editable, onSaved }: { p: PromoterProfile; editable: b
           <fieldset disabled={!editable} className="space-y-4">
             <div className="grid grid-cols-[minmax(0,1fr)] gap-4 sm:grid-cols-2">
               <Input label="Licence number" required error={errors.licenceNumber?.message} {...register('licenceNumber')} />
-              <Input label="Issuing authority" required placeholder="Authority shown on your Cameroon business licence" error={errors.licenceAuthority?.message} {...register('licenceAuthority')} />
+              <Input label="Issuing authority" required placeholder="Authority on your licence, e.g. Ministère des Arts et de la Culture (MINAC)" error={errors.licenceAuthority?.message} {...register('licenceAuthority')} />
             </div>
             <Input label="Expiry date" type="date" required error={errors.licenceExpiry?.message} {...register('licenceExpiry')} />
             <Textarea label="Additional information" rows={3} placeholder="Coverage area, licence category or anything the reviewer should know." error={errors.licenceInfo?.message} {...register('licenceInfo')} />
