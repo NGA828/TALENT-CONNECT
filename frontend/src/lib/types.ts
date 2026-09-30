@@ -371,7 +371,7 @@ export interface UserSummary {
 
 export interface AiStatus {
   provider: string;
-  /** Human-readable vendor, e.g. "Grok (xAI)". */
+  /** Human-readable vendor, e.g. "Groq" or "Grok (xAI)". */
   providerLabel?: string;
   live: boolean;
   model: string;

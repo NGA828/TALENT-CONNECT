@@ -1,15 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AiProvider, AiRequest } from './ai.provider';
-import { resolveAiKey } from './ai-config';
+import { AI_PROVIDER_PRESETS, resolveAiConnection } from './ai-config';
 import { requestChatCompletion } from './chat-completions';
-
-const DEFAULT_BASE_URL = 'https://openrouter.ai/api/v1';
-const DEFAULT_MODEL = 'openai/gpt-4o-mini';
 
 /**
  * Generic adapter for any other OpenAI-compatible `/chat/completions` endpoint
- * (OpenAI, OpenRouter, a self-hosted gateway …). The key never leaves the backend.
+ * (OpenAI, OpenRouter, a proxy, a self-hosted gateway …). The key never leaves the backend.
  */
 @Injectable()
 export class OpenAiCompatibleProvider extends AiProvider {
@@ -22,9 +19,10 @@ export class OpenAiCompatibleProvider extends AiProvider {
 
   constructor(config: ConfigService) {
     super();
-    this.baseUrl = (config.get<string>('AI_BASE_URL') ?? DEFAULT_BASE_URL).replace(/\/+$/, '');
-    this.apiKey = resolveAiKey(config);
-    this.model = config.get<string>('AI_MODEL') ?? DEFAULT_MODEL;
+    const connection = resolveAiConnection({ get: (key: string) => config.get(key) });
+    this.baseUrl = connection.baseUrl || AI_PROVIDER_PRESETS['openai-compatible'].baseUrl;
+    this.model = connection.model || AI_PROVIDER_PRESETS['openai-compatible'].model;
+    this.apiKey = connection.key;
   }
 
   complete(req: AiRequest): Promise<string> {

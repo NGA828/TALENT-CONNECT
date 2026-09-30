@@ -1,37 +1,38 @@
 /**
  * Quick check for the AI assistant configuration: `npm run ai:check`.
  *
- * It loads backend/.env, says which provider and model would answer, then makes one
- * small live request so a freshly pasted Grok key can be verified in seconds.
+ * It loads backend/.env, says which provider, endpoint, model and key variable would be used,
+ * then makes one small live request so a freshly pasted key can be verified in seconds.
  */
 import 'dotenv/config';
 import { ConfigService } from '@nestjs/config';
-import { AI_KEY_ENV_VARS, AI_PROVIDER_LABELS, resolveAiKey, selectAiProvider } from '../src/ai/providers/ai-config';
+import { AI_PROVIDER_LABELS, selectAiProvider, resolveAiConnection } from '../src/ai/providers/ai-config';
+import { GroqProvider } from '../src/ai/providers/groq.provider';
 import { GrokProvider } from '../src/ai/providers/grok.provider';
 import { OpenAiCompatibleProvider } from '../src/ai/providers/openai-compatible.provider';
 
 const config = { get: (key: string) => process.env[key] } as unknown as ConfigService;
 
 async function main() {
-  const key = resolveAiKey(config);
-  const source = AI_KEY_ENV_VARS.find((name) => (process.env[name] ?? '').trim());
-  const id = selectAiProvider(config.get<string>('AI_PROVIDER'), key);
+  const connection = resolveAiConnection(config);
+  const requested = selectAiProvider(config.get<string>('AI_PROVIDER'));
 
-  console.log(`Provider : ${id} (AI_PROVIDER=${process.env.AI_PROVIDER ?? 'unset'})`);
-  console.log(`API key  : ${key ? `found in ${source} (${key.slice(0, 6)}…)` : 'none'}`);
+  console.log(`Provider : ${requested} (AI_PROVIDER=${process.env.AI_PROVIDER ?? 'unset → groq'})`);
+  console.log(`Endpoint : ${connection.baseUrl}`);
+  console.log(`Model    : ${connection.model}`);
+  console.log(`API key  : ${connection.live ? `found in ${connection.keySource} (${connection.key.slice(0, 4)}…)` : 'none'}`);
 
-  if (id === 'offline') {
+  if (!connection.live) {
+    const hint = requested === 'groq' ? 'GROQ_API_KEY=gsk_...' : requested === 'grok' ? 'XAI_API_KEY=xai-...' : 'AI_API_KEY=...';
     console.log('\nThe assistant would answer with the built-in offline template writer.');
-    console.log('Add XAI_API_KEY=xai-... to backend/.env (create a key at https://console.x.ai) and run this again.');
+    console.log(`Add ${hint} to backend/.env${requested === 'groq' ? ' (create a key at https://console.groq.com)' : ''} and run this again.`);
     process.exitCode = 1;
     return;
   }
 
-  const provider = id === 'grok' ? new GrokProvider(config) : new OpenAiCompatibleProvider(config);
-  const baseUrl = (config.get<string>('AI_BASE_URL') ?? (id === 'grok' ? 'https://api.x.ai/v1' : 'https://openrouter.ai/api/v1')).replace(/\/+$/, '');
-  console.log(`Endpoint : ${baseUrl}`);
-  console.log(`Model    : ${provider.model}`);
-  console.log(`\nSending one test message to ${AI_PROVIDER_LABELS[id]}…`);
+  const provider =
+    connection.id === 'groq' ? new GroqProvider(config) : connection.id === 'grok' ? new GrokProvider(config) : new OpenAiCompatibleProvider(config);
+  console.log(`\nSending one test message to ${AI_PROVIDER_LABELS[connection.id]}…`);
 
   const reply = await provider.complete({
     task: 'GENERAL',

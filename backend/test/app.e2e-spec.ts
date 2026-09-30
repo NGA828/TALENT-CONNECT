@@ -5,7 +5,7 @@ import { execSync } from 'node:child_process';
 import { rmSync } from 'node:fs';
 import { after as afterAll, before as beforeAll, describe, it } from 'node:test';
 import request from 'supertest';
-import { resolveAiKey, selectAiProvider } from '../src/ai/providers/ai-config';
+import { resolveAiConnection, resolveAiKey, selectAiProvider } from '../src/ai/providers/ai-config';
 
 process.env.DATABASE_URL = 'file:./prisma/test.db';
 process.env.UPLOAD_DIR = './uploads-test';
@@ -15,8 +15,8 @@ process.env.AI_RATE_LIMIT = '100000';
 // Tests always exercise the offline adapter: a real key in backend/.env must never
 // make the suite call a paid API. (ConfigService lets process.env win over the .env file.)
 process.env.AI_API_KEY = '';
+process.env.GROQ_API_KEY = '';
 process.env.XAI_API_KEY = '';
-process.env.GROK_API_KEY = '';
 process.env.AI_PROVIDER = '';
 
 /** Builds a fresh, seeded SQLite database (prisma/test.db) – the development database is never touched. */
@@ -715,22 +715,42 @@ describe('Talent Connect API (e2e)', () => {
       expect(status.body.providerLabel).toBe('Offline assistant');
       expect(status.body.live).toBe(false);
     });
-    it('switches to Grok as soon as a server key is present', () => {
-      // Selection is pure, so it is checked here without calling a paid API.
-      expect(selectAiProvider(undefined, 'xai-test-key')).toBe('grok');
-      expect(selectAiProvider('grok', 'xai-test-key')).toBe('grok');
-      expect(selectAiProvider('XAI', 'xai-test-key')).toBe('grok');
-      expect(selectAiProvider('openrouter', 'sk-test')).toBe('openai-compatible');
-      expect(selectAiProvider('offline', 'xai-test-key')).toBe('offline');
-      expect(selectAiProvider('openrouter', '')).toBe('offline');
-      expect(selectAiProvider(undefined, '')).toBe('offline');
+    it('defaults to Groq and goes live as soon as its key is present', () => {
+      // Selection and key resolution are pure, so they are checked here without calling a paid API.
+      const read = (env: Record<string, string>) => ({ get: <T>(key: string) => env[key] as T | undefined });
 
-      const readKey = (env: Record<string, string>) => resolveAiKey({ get: <T>(key: string) => env[key] as T | undefined });
-      expect(readKey({ XAI_API_KEY: 'xai-abc' })).toBe('xai-abc');
-      expect(readKey({ GROK_API_KEY: 'grok-abc' })).toBe('grok-abc');
-      expect(readKey({ AI_API_KEY: 'sk-1', XAI_API_KEY: 'xai-2' })).toBe('sk-1');
-      expect(readKey({ XAI_API_KEY: '   ' })).toBe('');
-      expect(readKey({})).toBe('');
+      // Default provider is Groq — not xAI's Grok, whose name differs by one letter.
+      expect(selectAiProvider(undefined)).toBe('groq');
+      expect(selectAiProvider('groq')).toBe('groq');
+      expect(selectAiProvider('GroqCloud')).toBe('groq');
+      expect(selectAiProvider('grok')).toBe('grok');
+      expect(selectAiProvider('xai')).toBe('grok');
+      expect(selectAiProvider('openrouter')).toBe('openai-compatible');
+      expect(selectAiProvider('offline')).toBe('offline');
+
+      const groq = resolveAiConnection(read({ GROQ_API_KEY: 'gsk_abc' }));
+      expect(groq.id).toBe('groq');
+      expect(groq.live).toBe(true);
+      expect(groq.baseUrl).toBe('https://api.groq.com/openai/v1');
+      expect(groq.model).toBe('llama-3.3-70b-versatile');
+      expect(groq.keySource).toBe('GROQ_API_KEY');
+
+      // Keys never leak across vendors, and a missing key falls back to the offline assistant.
+      expect(resolveAiConnection(read({ XAI_API_KEY: 'xai-abc' })).id).toBe('offline');
+      expect(resolveAiConnection(read({})).id).toBe('offline');
+      expect(resolveAiConnection(read({ AI_PROVIDER: 'grok', XAI_API_KEY: 'xai-abc' })).id).toBe('grok');
+      expect(resolveAiConnection(read({ AI_PROVIDER: 'grok', GROQ_API_KEY: 'gsk_abc' })).id).toBe('offline');
+      expect(resolveAiConnection(read({ AI_PROVIDER: 'offline', GROQ_API_KEY: 'gsk_abc' })).id).toBe('offline');
+      expect(resolveAiConnection(read({ AI_API_KEY: 'sk-1', GROQ_API_KEY: 'gsk-2' })).keySource).toBe('GROQ_API_KEY');
+      expect(resolveAiConnection(read({ AI_API_KEY: 'sk-1' })).id).toBe('groq');
+      expect(resolveAiConnection(read({ GROQ_MODEL: 'openai/gpt-oss-120b' })).model).toBe('openai/gpt-oss-120b');
+
+      // Key lookup ignores blank values and reports the variable it used.
+      expect(resolveAiKey(read({ GROQ_API_KEY: '   ' }), 'groq')).toBeNull();
+      expect(resolveAiKey(read({}), 'groq')).toBeNull();
+      expect(resolveAiKey(read({ GROQ_API_KEY: 'gsk_abc' }), 'groq')?.source).toBe('GROQ_API_KEY');
+      expect(resolveAiKey(read({ XAI_API_KEY: 'xai-abc' }), 'grok')?.key).toBe('xai-abc');
+      expect(resolveAiKey(read({ GROQ_API_KEY: 'gsk_abc' }), 'grok')).toBeNull();
     });
     it('never exposes API keys', async () => {
       const res = await get('/api/ai/status', alex);

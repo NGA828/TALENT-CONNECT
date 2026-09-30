@@ -6433,7 +6433,7 @@
     },
     {
       "name": "13 · AI assistant",
-      "description": "AI writing assistant for talents. Live with Grok (xAI) as soon as XAI_API_KEY is set on the server; otherwise the offline template writer answers and /ai/status says so.",
+      "description": "AI writing assistant for talents. Live with Groq as soon as GROQ_API_KEY is set on the server (xAI Grok and any OpenAI-compatible endpoint are also supported); otherwise the offline template writer answers and /ai/status says so.",
       "item": [
         {
           "name": "Get AI status",

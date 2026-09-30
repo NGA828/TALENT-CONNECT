@@ -640,7 +640,7 @@ items.push(
 );
 
 items.push(
-  folder('13 · AI assistant', 'AI writing assistant for talents. Live with Grok (xAI) as soon as XAI_API_KEY is set on the server; otherwise the offline template writer answers and /ai/status says so.', [
+  folder('13 · AI assistant', 'AI writing assistant for talents. Live with Groq as soon as GROQ_API_KEY is set on the server (xAI Grok and any OpenAI-compatible endpoint are also supported); otherwise the offline template writer answers and /ai/status says so.', [
     req({ name: 'Get AI status', method: 'GET', path: '/ai/status', token: 'talentToken', expect: 200,
       tests: `pm.test("Status names the adapter without leaking the key", function () {
     const b = pm.response.json();

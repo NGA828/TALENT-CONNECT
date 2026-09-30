@@ -76,20 +76,33 @@ cd frontend && npm run build && npm run start
 | `DATABASE_URL` | SQLite file, e.g. `file:./prisma/dev.db` (resolved relative to `backend/`). |
 | `JWT_SECRET`, `JWT_EXPIRES_IN` | Token signing. Use a long random secret. |
 | `PAYMENT_PROVIDER`, `PAYMENT_CURRENCY`, `LICENCE_FEE_AMOUNT`, `PAYMENT_API_KEY/SECRET` | Licence-fee module. `manual` (default) means promoters pay by MTN MoMo / Orange Money and an administrator confirms the transfer; `LICENCE_FEE_AMOUNT` is only the default until an administrator sets the fee. The key slots are reserved for a live aggregator and stay server-side. |
-| `XAI_API_KEY` (or `AI_API_KEY` / `GROK_API_KEY`), `AI_PROVIDER`, `AI_BASE_URL`, `AI_MODEL`, `AI_MAX_TOKENS`, `AI_TIMEOUT_MS` | AI assistant. Put a Grok key from [console.x.ai](https://console.x.ai) in `XAI_API_KEY` and the assistant is live — `npm run ai:check` in `backend/` verifies it. With no key it falls back to the offline template writer. |
+| `GROQ_API_KEY` (xAI: `XAI_API_KEY`, generic: `AI_API_KEY`), `AI_PROVIDER`, `GROQ_BASE_URL` / `AI_BASE_URL`, `GROQ_MODEL` / `AI_MODEL`, `AI_MAX_TOKENS`, `AI_TIMEOUT_MS` | AI assistant. Put a Groq key from [console.groq.com](https://console.groq.com) in `GROQ_API_KEY` and the assistant is live — `npm run ai:check` in `backend/` verifies it. With no key it falls back to the offline template writer. |
 | `UPLOAD_DIR` | Local upload folder for the dev storage adapter. |
 | `RATE_LIMIT`, `AUTH_RATE_LIMIT`, `AI_RATE_LIMIT` | Requests per minute per client. |
 
 `frontend/.env.example` has a single server-side variable, `BACKEND_URL`. There are no `NEXT_PUBLIC_*` secrets; API keys never reach the browser.
 
-### Switching on the AI assistant (Grok)
+### Switching on the AI assistant (Groq)
 
-1. Create an API key at [console.x.ai](https://console.x.ai) → *API Keys*.
-2. Put it in `backend/.env`: `XAI_API_KEY=xai-…` (that file is git-ignored — never commit a key).
-3. Restart the backend. The boot log prints `AI assistant: live via Grok (xAI) (model grok-4.7)` and the assistant page shows the live provider instead of the offline banner.
-4. `cd backend && npm run ai:check` makes one test call and prints the reply, so a bad key or a model name the account cannot use is obvious immediately.
+The assistant runs on **Groq** — open-weight models on LPUs, fast and cheap — through Groq's OpenAI-compatible endpoint `https://api.groq.com/openai/v1`.
 
-`AI_MODEL` defaults to `grok-4.7`; `grok-4.3` or `grok-4-1-fast-non-reasoning` are cheaper/faster options. To use another vendor instead, set `AI_PROVIDER=openai-compatible` with `AI_BASE_URL` / `AI_MODEL`. With no key at all the assistant keeps working through the built-in offline template writer and says so in the UI.
+1. Create an API key at [console.groq.com](https://console.groq.com) → *API Keys* (starts with `gsk_`).
+2. Put it in `backend/.env`: `GROQ_API_KEY=gsk_…` (that file is git-ignored — never commit a key).
+3. Restart the backend. The boot log prints `AI assistant: live via Groq (model llama-3.3-70b-versatile)` and the assistant page shows the live provider instead of the offline banner.
+4. `cd backend && npm run ai:check` makes one test call and prints the reply, so a bad key or an unavailable model is obvious immediately.
+
+`GROQ_MODEL` defaults to `llama-3.3-70b-versatile`; `openai/gpt-oss-120b`, `openai/gpt-oss-20b` and `llama-3.1-8b-instant` are other models on the same key. With no key at all the assistant keeps working through the built-in offline template writer and says so in the UI.
+
+**Other vendors.** `AI_PROVIDER` picks the adapter and each one has its own key:
+
+| `AI_PROVIDER` | Vendor | Key | Endpoint / model defaults |
+| --- | --- | --- | --- |
+| `groq` *(default)* | [Groq](https://console.groq.com) | `GROQ_API_KEY` | `https://api.groq.com/openai/v1` · `llama-3.3-70b-versatile` |
+| `grok` | [xAI](https://console.x.ai) — note the spelling | `XAI_API_KEY` | `https://api.x.ai/v1` · `grok-4.7` |
+| `openai-compatible` | OpenAI, OpenRouter, a proxy … | `AI_API_KEY` | `AI_BASE_URL` + `AI_MODEL` (defaults to OpenRouter) |
+| `offline` | — | — | built-in template writer |
+
+Keys are never shared between vendors: a `GROQ_API_KEY` does not activate the xAI adapter and vice versa. `AI_BASE_URL` / `AI_MODEL` still act as generic fallbacks if you prefer one set of variables.
 
 ---
 
@@ -123,7 +136,7 @@ common/{decorators,guards,filters,utils}   prisma/
 - **Licence fees** (`payments/`): `PaymentsModule`, controller, service, DTOs, `LicenceFeeService` (the admin-managed settings) and a `MobileMoneyProvider` abstraction. Cameroon pays with Mobile Money, so the bundled `ManualMobileMoneyProvider` (`PAYMENT_PROVIDER=manual`, `automatic: false`) is the honest default: the promoter transfers the fee with MTN MoMo (`*126#`) or Orange Money (`#150#`) to the merchant wallet the admin publishes, declares the transaction ID (plus an optional receipt screenshot) and an administrator — who holds the wallet — confirms or rejects it. Only the Cameroonian numbering plan is accepted for wallet numbers, and a transaction ID cannot be declared twice. Implement `MobileMoneyProvider` (Campay, MeSomb, Notch Pay, MTN MoMo API, Orange Money API, Flutterwave …) to settle transfers without an administrator touching them; the interface, the factory in `payments.module.ts` and the UI wording already support it.
   Administrators own the fee end to end in `Admin → Licence fees`: the amount in whole FCFA, the two merchant numbers, which networks are open, the instructions, the confirmation queue, refunds (sent back from the merchant wallet) and counter payments recorded on a promoter's behalf.
 - **Settings** (`Setting` table): a small key/value store (prefix `licenceFee.`) so the fee can change without a redeploy; `LICENCE_FEE_AMOUNT` and `PAYMENT_CURRENCY` remain the fallbacks.
-- **AI** (`ai/`): `AIController`, `AiService` and an `AiProvider` abstraction with three adapters: **Grok (xAI)** — the default, called over `https://api.x.ai/v1/chat/completions`; a generic OpenAI-compatible adapter for OpenAI / OpenRouter / a proxy (`AI_PROVIDER=openai-compatible`); and an offline template writer used automatically when no key is configured. `AiModule` picks the adapter from `AI_PROVIDER` + the presence of a key (`XAI_API_KEY`, `AI_API_KEY` or `GROK_API_KEY`) and logs the choice at boot; `/ai/status` reports it and the UI shows the live vendor and model or says plainly that it is offline. Every answer stays grounded in the signed-in talent's profile (plus the selected event), the key never leaves the server, and provider failures surface as clear messages (bad key, rate limit, unknown model, timeout). Run `npm run ai:check` in `backend/` after adding a key to test it in one call.
+- **AI** (`ai/`): `AiController`, `AiService` and an `AiProvider` abstraction with four adapters: **Groq** (`api.groq.com/openai/v1`) — the default; **Grok** (xAI, `api.x.ai/v1`); a generic OpenAI-compatible adapter for OpenAI / OpenRouter / a proxy; and an offline template writer used automatically when no key is configured. `AiModule` resolves `AI_PROVIDER` + the matching key variable (see the table above), logs the choice at boot, and each vendor keeps its own key and endpoint defaults so one provider's key can never activate another. `/ai/status` reports the live vendor label and model, the UI shows exactly who is answering (or says plainly that it is offline), every answer stays grounded in the signed-in talent's profile (plus the selected event), the key never leaves the server, and provider failures surface as clear messages (bad key, rate limit, unknown model, timeout). Run `npm run ai:check` in `backend/` after adding a key to test it in one call.
 - **Storage** (`storage/`): `StorageService` validates MIME type and size per media type (image 10 MB, video 50 MB, audio 20 MB, PDF 10 MB) and delegates to a `StorageProvider`. `LocalStorageProvider` writes to `UPLOAD_DIR`; an S3 / Cloudinary adapter only needs to implement the same interface.
 - **Status enums:** Contract `PENDING / ACTIVE / COMPLETED / CANCELLED / REJECTED`; Licence `NOT_SUBMITTED / PENDING / VERIFIED / REJECTED`; Payment `PENDING / SUCCESS / FAILED / REFUNDED` (a `PENDING` payment with `submittedAt` is waiting for administrator confirmation) with method `MTN_MOMO / ORANGE_MONEY / OFFLINE`; Event `DRAFT / PUBLISHED / ONGOING / COMPLETED / CANCELLED`.
 
@@ -148,15 +161,24 @@ lib/           api client, useApi, toast, hooks, formatters, shared types
 
 ---
 
+## Documentation
+
+| Document | For | What it covers |
+| --- | --- | --- |
+| [`docs/Talent-Connect-User-Guide.pdf`](docs/Talent-Connect-User-Guide.pdf) | Everyone using the platform | Printable guide: the three roles, the Mobile Money licence fee step by step (`*126#` / `#150#`), the administrator fee console, the AI assistant, troubleshooting, demo accounts. Rebuild with `python3 docs/user-guide/build-user-guide.py` after editing `docs/user-guide/guide_content.py`. |
+| [`API_DOCUMENTATION.md`](API_DOCUMENTATION.md) | Developers integrating with the API | Every endpoint, payload, status code and enum. |
+| [`postman/README.md`](postman/README.md) | Testers | How to run the 130-request collection with Postman or newman. |
+| [`DESIGN_RESEARCH.md`](DESIGN_RESEARCH.md) | Designers | The research behind each screen and the decisions taken. |
+
 ## Testing
 
 ```bash
-cd backend && npm test          # 71 API tests against a throw-away SQLite database
+cd backend && npm test          # 73 API tests against a throw-away SQLite database
 cd backend && npm run lint && npm run build
 cd frontend && npm run lint && npm run typecheck && npm run build
 ```
 
-**Postman / newman:** [`postman/`](postman/README.md) contains a 118-request Postman collection covering every module, and [screenshots of each request](postman/screenshots/README.md). Run it with `cd postman && npm install && npm test`.
+**Postman / newman:** [`postman/`](postman/README.md) contains a 130-request Postman collection covering every module, and [screenshots of each request](postman/screenshots/README.md). Run it with `cd postman && npm install && npm test`.
 
 The backend suite (`node:test` + `expect`, real Nest app, real SQLite) covers both valid and invalid paths: registration validation and duplicate emails, login failures, suspended users, role and ownership violations (403), unknown resources (404), state conflicts (409), validation errors (422), upload type and size limits, event and contract state machines, the Mobile Money licence fee (checkout → transfer declared → administrator confirm/reject → licence review), admin fee settings and counter payments, messaging, notifications, AI, admin operations and the error envelope (no stack traces).
 

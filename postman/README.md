@@ -26,7 +26,7 @@ This folder holds the Postman test suite for the REST API and screenshots of eve
 | 10 | Messages | send, empty message (422), conversations, unread count, thread, mark read |
 | 11 | Notifications | list, unread count, mark one read, mark all read |
 | 12 | Payments | Mobile Money licence fee: config (FCFA, `*126#` / `#150#`), checkout, declare an MTN MoMo transfer, foreign wallet number (422), duplicate transaction ID (409), admin reject without a reason (422), reject, confirm a rejected transfer (409), resubmit with a corrected ID, admin confirm, fee marked paid, history, get by id, checkout while a transfer awaits (409) |
-| 13 | AI assistant | status (names the adapter, never the key), chat, history, clear history — live with Grok when `XAI_API_KEY` is set, offline otherwise |
+| 13 | AI assistant | status (names the adapter, never the key), chat, history, clear history — live with Groq when `GROQ_API_KEY` is set, offline otherwise |
 | 14 | Admin | stats, monitoring, licence-fee settings (get, update, amount outside the limits 422, both services off 400), transfers awaiting confirmation, users, verification queue, promoter details, reject without a reason (400), approve, portfolio flag/restore, events, payments, refund, counter payment recorded (201) and recorded twice (409), JSON report, CSV export, suspend user, suspended token revoked (401), non-admin (403) |
 | 15 | Cleanup | delete draft event, delete portfolio item, logout |
 

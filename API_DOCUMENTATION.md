@@ -191,13 +191,13 @@ Payment records store the method, payer name and number, transaction ID, optiona
 
 ## ai
 
-Role: TALENT. The model answers through Grok (xAI) by default; the API key stays on the server (never in a response or the browser). `POST /ai/chat` is throttled (`AI_RATE_LIMIT`).
+Role: TALENT. The model answers through **Groq** by default; the API key stays on the server (never in a response or the browser). `POST /ai/chat` is throttled (`AI_RATE_LIMIT`).
 
-Configuration (backend `.env`): `XAI_API_KEY` (or `AI_API_KEY` / `GROK_API_KEY`) switches the assistant on, `AI_PROVIDER` chooses the adapter (`grok` — the default — `openai-compatible`, or `offline`), `AI_MODEL` defaults to `grok-4.7`, `AI_BASE_URL` defaults to `https://api.x.ai/v1`, `AI_MAX_TOKENS` / `AI_TIMEOUT_MS` bound each call. With no key configured the platform serves the offline template assistant instead and `/ai/status` says so. Provider problems (rejected key, rate limit, unknown model, timeout) return 503 with a plain-language message.
+Configuration (backend `.env`): `AI_PROVIDER` picks the adapter — `groq` (default), `grok` (xAI), `openai-compatible` or `offline` — and each vendor has its own key variable: `GROQ_API_KEY` for Groq, `XAI_API_KEY` for xAI, `AI_API_KEY` for a generic endpoint (a key never activates another vendor's adapter). Endpoint and model default per vendor (`groq` → `https://api.groq.com/openai/v1` + `llama-3.3-70b-versatile`; `grok` → `https://api.x.ai/v1` + `grok-4.7`; `openai-compatible` → `AI_BASE_URL` + `AI_MODEL`, OpenRouter by default); `GROQ_BASE_URL` / `GROQ_MODEL` (or `XAI_*`) override them, and `AI_BASE_URL` / `AI_MODEL` work as generic fallbacks. `AI_MAX_TOKENS` / `AI_TIMEOUT_MS` bound each call. With no key configured the platform serves the offline template assistant instead and `/ai/status` says so. Provider problems (rejected key, rate limit, unknown model, timeout) return 503 with a plain-language message.
 
 | Method & path | Description |
 | --- | --- |
-| `GET /ai/status` | `{ live, provider, providerLabel, model, mode }` – `live:false` (mode `offline`) means the offline template assistant; `providerLabel` is the vendor shown in the UI (e.g. "Grok (xAI)"). |
+| `GET /ai/status` | `{ live, provider, providerLabel, model, mode }` – `live:false` (mode `offline`) means the offline template assistant; `providerLabel` is the vendor shown in the UI (e.g. "Groq"). |
 | `GET /ai/history` | Your saved conversation (array). |
 | `DELETE /ai/history` | Clear it. |
 | `POST /ai/chat` | `{ message (2–2000 chars), task?: IMPROVE_BIO\|PORTFOLIO_DESCRIPTION\|MESSAGE_DRAFT\|EVENT_ADVICE\|SKILLS_PRESENTATION\|GENERAL, eventId? }` → `{ reply, task, live, provider, providerLabel, model, mode }`. The reply is grounded in your profile (and the event, for `EVENT_ADVICE`); the licence fee it mentions is the platform's own FCFA charge paid with MTN MoMo or Orange Money, not a government fee. |
