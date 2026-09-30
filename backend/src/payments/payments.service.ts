@@ -21,10 +21,10 @@ export class PaymentsService {
   ) {}
 
   get licenceFee() {
-    return Number(this.config.get('LICENCE_FEE_AMOUNT') ?? 49);
+    return Number(this.config.get('LICENCE_FEE_AMOUNT') ?? 30000);
   }
   get currency() {
-    return this.config.get<string>('PAYMENT_CURRENCY') ?? 'USD';
+    return this.config.get<string>('PAYMENT_CURRENCY') ?? 'XAF';
   }
 
   getConfig() {

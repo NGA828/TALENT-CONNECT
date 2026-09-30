@@ -26,7 +26,7 @@ const base = {
   firstName: z.string().trim().min(1, 'Enter your first name.').max(60),
   lastName: z.string().trim().min(1, 'Enter your last name.').max(60),
   email: z.string().trim().min(1, 'Enter your email address.').email('Enter a valid email address.'),
-  phone: z.string().trim().regex(PHONE_RULE, 'Enter a valid phone number, e.g. +1 212 555 0100.'),
+  phone: z.string().trim().regex(PHONE_RULE, 'Enter a valid phone number, e.g. +237 6 70 12 34 56.'),
   password: z.string().regex(PASSWORD_RULE, 'Use 8–72 characters with an uppercase letter, a lowercase letter and a number.'),
   confirmPassword: z.string().min(1, 'Please confirm your password.'),
 };
@@ -42,7 +42,7 @@ const promoterSchema = z
 type TalentValues = z.infer<typeof talentSchema>;
 type PromoterValues = z.infer<typeof promoterSchema>;
 
-const FALLBACK_META: PublicMeta = { specializations: [], genders: ['FEMALE', 'MALE', 'NON_BINARY', 'PREFER_NOT_TO_SAY'], eventCategories: [], licenceFee: 0, currency: 'USD' };
+const FALLBACK_META: PublicMeta = { specializations: [], genders: ['FEMALE', 'MALE', 'NON_BINARY', 'PREFER_NOT_TO_SAY'], eventCategories: [], licenceFee: 0, currency: 'XAF' };
 
 export function RegisterForm() {
   const params = useSearchParams();
@@ -89,7 +89,7 @@ function CommonFields({ register, errors }: { register: ReturnType<typeof useFor
         <Input label="Last name" autoComplete="family-name" required error={errors.lastName?.message} {...register('lastName')} />
       </div>
       <Input label="Email" type="email" autoComplete="email" required error={errors.email?.message} {...register('email')} />
-      <Input label="Phone" type="tel" autoComplete="tel" placeholder="+1 212 555 0100" required error={errors.phone?.message} {...register('phone')} />
+      <Input label="Phone" type="tel" autoComplete="tel" placeholder="+237 6 70 12 34 56" required error={errors.phone?.message} {...register('phone')} />
     </>
   );
 }

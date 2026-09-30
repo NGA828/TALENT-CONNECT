@@ -21,7 +21,7 @@ const schema = z.object({
   category: z.string().min(1, 'Choose a category.'),
   talentNeeded: z.string().optional(),
   location: z.string().trim().min(2, 'Enter the venue or city.').max(160),
-  eventDate: z.string().min(1, 'Choose the date and time.').refine((v) => new Date(v).getTime() > Date.now(), 'The event must be in the future.'),
+  eventDate: z.string().min(1, 'Choose the date and time.').refine((v) => new Date(`${v}:00+01:00`).getTime() > Date.now(), 'The event must be in the future.'),
   budget: z.string().trim().max(80).optional(),
   description: z.string().trim().min(30, 'Describe the event in at least 30 characters so talent know what to expect.').max(4000),
 });
@@ -48,7 +48,7 @@ export function EventForm({ existing }: { existing?: EventItem }) {
 
   const onSubmit = handleSubmit(async (v) => {
     setFormError(null);
-    const body = { ...v, eventDate: new Date(v.eventDate).toISOString(), talentNeeded: v.talentNeeded || undefined, budget: v.budget || undefined };
+    const body = { ...v, eventDate: new Date(`${v.eventDate}:00+01:00`).toISOString(), talentNeeded: v.talentNeeded || undefined, budget: v.budget || undefined };
     try {
       if (existing) {
         await api.patch(`/events/${existing.id}`, body);
@@ -84,10 +84,10 @@ export function EventForm({ existing }: { existing?: EventItem }) {
           </Select>
         </div>
         <div className="grid grid-cols-[minmax(0,1fr)] gap-5 sm:grid-cols-2">
-          <Input label="Venue / city" required placeholder="Pier 17 Rooftop, New York" error={errors.location?.message} {...register('location')} />
-          <Input label="Date and time" type="datetime-local" required error={errors.eventDate?.message} {...register('eventDate')} />
+          <Input label="Venue / city" required placeholder="Bonanjo, Douala" error={errors.location?.message} {...register('location')} />
+          <Input label="Date and time (Cameroon, UTC+1)" type="datetime-local" required error={errors.eventDate?.message} {...register('eventDate')} />
         </div>
-        <Input label="Budget" placeholder="$800 – $1,400" hint="Free text, shown to talent. Leave blank for “to be confirmed”." error={errors.budget?.message} {...register('budget')} />
+        <Input label="Budget" placeholder="150,000 – 300,000 FCFA" hint="Free text, shown to talent. Leave blank for “to be confirmed”." error={errors.budget?.message} {...register('budget')} />
         <Textarea label="Description" required rows={7} placeholder="What is the event, who attends, what will the talent be doing, and what do you expect from them?" error={errors.description?.message} {...register('description')} />
       </Card>
       <div className="mt-5 flex flex-wrap justify-end gap-3">

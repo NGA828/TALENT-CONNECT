@@ -14,7 +14,7 @@ import { Alert } from '@/components/ui/feedback';
 import { Modal } from '@/components/ui/modal';
 import { StarInput } from '@/components/ui/rating';
 
-const CURRENCIES = ['USD', 'EUR', 'GBP', 'XAF', 'NGN', 'GHS', 'ZAR', 'KES'];
+const CURRENCIES = ['XAF', 'USD', 'EUR', 'GBP', 'NGN', 'GHS', 'ZAR', 'KES'];
 
 const schema = z.object({
   terms: z.string().trim().min(20, 'Describe the contract terms in at least 20 characters.').max(6000, 'Keep the terms under 6,000 characters.'),
@@ -39,7 +39,7 @@ export function ContractFormModal({ open, onClose, onSaved, create, existing }: 
   const [formError, setFormError] = useState<string | null>(null);
   const { register, handleSubmit, setError, reset, formState: { errors, isSubmitting } } = useForm<Values>({
     resolver: zodResolver(schema),
-    values: { terms: existing?.terms ?? '', amount: existing?.amount?.toString() ?? '', currency: existing?.currency ?? 'USD', reviewNotes: existing?.reviewNotes ?? '' },
+    values: { terms: existing?.terms ?? '', amount: existing?.amount?.toString() ?? '', currency: existing?.currency ?? 'XAF', reviewNotes: existing?.reviewNotes ?? '' },
   });
 
   const submit = handleSubmit(async (v) => {

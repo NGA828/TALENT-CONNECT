@@ -108,7 +108,7 @@ function ProfileForm({ profile, onSaved }: { profile: TalentProfile; onSaved: ()
                 </Select>
               </div>
               <div className="grid grid-cols-[minmax(0,1fr)] gap-4 sm:grid-cols-2">
-                <Input label="Location" placeholder="City, country" error={errors.location?.message} {...register('location')} />
+                <Input label="Location" placeholder="Douala, Cameroon" error={errors.location?.message} {...register('location')} />
                 <Input label="Years of experience" type="number" min={0} max={60} error={errors.experienceYears?.message} {...register('experienceYears')} />
               </div>
               <Textarea label="Bio" rows={6} placeholder="Tell promoters who you are, what you shoot / play / run, and what makes you reliable." hint="Not sure how to start? Try the AI assistant in the sidebar." error={errors.bio?.message} {...register('bio')} />

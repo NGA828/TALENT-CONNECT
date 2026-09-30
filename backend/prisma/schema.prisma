@@ -247,7 +247,7 @@ model Contract {
   contractDate  DateTime       @default(now())
   terms         String
   amount        Float?
-  currency      String         @default("USD")
+  currency      String         @default("XAF")
   documentUrl   String?
   documentName  String?
   reviewNotes   String?
@@ -272,7 +272,7 @@ model Payment {
   promoterId  String
   purpose     PaymentPurpose @default(LICENCE_FEE)
   amount      Float
-  currency    String         @default("USD")
+  currency    String         @default("XAF")
   status      PaymentStatus  @default(PENDING)
   provider    String
   providerRef String?
