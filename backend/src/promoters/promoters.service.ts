@@ -117,7 +117,7 @@ export class PromotersService {
         where: { promoterId, eventDate: { gte: now }, status: { in: [EventStatus.PUBLISHED, EventStatus.ONGOING, EventStatus.DRAFT] } },
         orderBy: { eventDate: 'asc' },
         take: 4,
-        include: { _count: { select: { enrollments: true } } },
+        include: { _count: { select: { enrollments: true } }, images: { orderBy: [{ position: 'asc' as const }, { createdAt: 'asc' as const }], take: 1, select: { url: true } } },
       }),
       this.prisma.talentEvent.findMany({
         where: { event: { promoterId } },
@@ -145,7 +145,7 @@ export class PromotersService {
       talentsOnPlatform,
       talentsInMyEvents: enrolledDistinct.length,
       payments: { totalPaid: paid.reduce((a, x) => a + x.amount, 0), count: payments.length, last: payments[0] ?? null },
-      upcomingEvents: upcoming.map((e) => ({ id: e.id, title: e.title, location: e.location, eventDate: e.eventDate, status: e.status, enrollmentCount: e._count.enrollments })),
+      upcomingEvents: upcoming.map((e) => ({ id: e.id, title: e.title, location: e.location, eventDate: e.eventDate, status: e.status, enrollmentCount: e._count.enrollments, coverImageUrl: e.images[0]?.url ?? null })),
       recentEnrollments: recentEnrollments.map((r) => ({
         id: r.id,
         enrolledAt: r.enrolledAt,

@@ -1,20 +1,23 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { api, errorMessage } from '@/lib/api';
 import { applyServerErrors } from '@/lib/hooks';
-import { toLocalInput } from '@/lib/format';
+import { formatFcfaBudget, parseFcfaBudget, toLocalInput } from '@/lib/format';
 import { useApi } from '@/lib/use-api';
 import { useToast } from '@/lib/toast';
-import type { EventItem, PublicMeta } from '@/lib/types';
+import type { EventImage, EventItem, PublicMeta } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input, Select, Textarea } from '@/components/ui/form';
 import { Alert } from '@/components/ui/feedback';
+import { EventImagePicker } from './event-images';
+
+const fcfaAmount = z.string().trim().regex(/^\d*$/, 'Enter a whole number of FCFA (digits only).').refine((v) => v === '' || Number(v) <= 1_000_000_000, 'That amount is too large.');
 
 const schema = z.object({
   title: z.string().trim().min(3, 'Give the event a title of at least 3 characters.').max(120),
@@ -22,9 +25,10 @@ const schema = z.object({
   talentNeeded: z.string().optional(),
   location: z.string().trim().min(2, 'Enter the venue or city.').max(160),
   eventDate: z.string().min(1, 'Choose the date and time.').refine((v) => new Date(`${v}:00+01:00`).getTime() > Date.now(), 'The event must be in the future.'),
-  budget: z.string().trim().max(80).optional(),
+  budgetMin: fcfaAmount,
+  budgetMax: fcfaAmount,
   description: z.string().trim().min(30, 'Describe the event in at least 30 characters so talent know what to expect.').max(4000),
-});
+}).refine((v) => !v.budgetMin || !v.budgetMax || Number(v.budgetMin) <= Number(v.budgetMax), { path: ['budgetMax'], message: 'The maximum must be at least the minimum.' });
 type Values = z.infer<typeof schema>;
 
 export function EventForm({ existing }: { existing?: EventItem }) {
@@ -33,7 +37,12 @@ export function EventForm({ existing }: { existing?: EventItem }) {
   const meta = useApi<PublicMeta>('/public/meta');
   const [formError, setFormError] = useState<string | null>(null);
   const [intent, setIntent] = useState<'draft' | 'publish'>('draft');
-  const { register, handleSubmit, setError, formState: { errors, isSubmitting } } = useForm<Values>({
+  const [images, setImages] = useState<EventImage[]>(existing?.images ?? []);
+  const [files, setFiles] = useState<File[]>([]);
+  const [imageError, setImageError] = useState<string | null>(null);
+  const [imageBusy, setImageBusy] = useState<string | null>(null);
+  const initialBudget = parseFcfaBudget(existing?.budget);
+  const { register, handleSubmit, setError, setValue, control, formState: { errors, isSubmitting } } = useForm<Values>({
     resolver: zodResolver(schema),
     defaultValues: {
       title: existing?.title ?? '',
@@ -41,26 +50,74 @@ export function EventForm({ existing }: { existing?: EventItem }) {
       talentNeeded: existing?.talentNeeded ?? '',
       location: existing?.location ?? '',
       eventDate: toLocalInput(existing?.eventDate),
-      budget: existing?.budget ?? '',
+      budgetMin: initialBudget.min?.toString() ?? '',
+      budgetMax: initialBudget.max?.toString() ?? '',
       description: existing?.description ?? '',
     },
   });
 
-  const onSubmit = handleSubmit(async (v) => {
+  // The category/talent dropdown options arrive after the form mounts; re-apply the saved values once they exist.
+  useEffect(() => {
+    if (!meta.data || !existing) return;
+    setValue('category', existing.category ?? '');
+    setValue('talentNeeded', existing.talentNeeded ?? '');
+  }, [meta.data, existing, setValue]);
+
+  const toNumber = (v?: string) => (v ? Number(v) : undefined);
+  const [watchMin, watchMax] = useWatch({ control, name: ['budgetMin', 'budgetMax'] });
+  const rangeOk = !watchMin || !watchMax || Number(watchMin) <= Number(watchMax);
+  const budgetPreview = rangeOk ? formatFcfaBudget(toNumber(watchMin), toNumber(watchMax)) : undefined;
+
+  /** Uploads the photos chosen in this session. Returns false (after telling the user) if it failed. */
+  const uploadPhotos = async (eventId: string) => {
+    if (files.length === 0) return true;
+    const form = new FormData();
+    files.forEach((f) => form.append('images', f));
+    try {
+      await api.upload<EventItem>('POST', `/events/${eventId}/images`, form);
+      return true;
+    } catch (err) {
+      toast.error(`The event was saved, but the photos could not be uploaded: ${errorMessage(err)}`);
+      return false;
+    }
+  };
+
+  const imageAction = async (image: EventImage, action: 'remove' | 'cover') => {
+    if (!existing) return;
+    setImageBusy(image.id);
+    try {
+      const updated = action === 'remove'
+        ? await api.del<EventItem>(`/events/${existing.id}/images/${image.id}`)
+        : await api.patch<EventItem>(`/events/${existing.id}/images/${image.id}/cover`, {});
+      setImages(updated.images);
+      toast.success(action === 'remove' ? 'Photo removed.' : 'Cover photo updated.');
+    } catch (err) {
+      toast.error(errorMessage(err));
+    } finally {
+      setImageBusy(null);
+    }
+  };
+
+  const onSubmit = handleSubmit(async ({ budgetMin, budgetMax, ...v }) => {
     setFormError(null);
-    const body = { ...v, eventDate: new Date(`${v.eventDate}:00+01:00`).toISOString(), talentNeeded: v.talentNeeded || undefined, budget: v.budget || undefined };
+    const budget = formatFcfaBudget(toNumber(budgetMin), toNumber(budgetMax));
+    const body = { ...v, eventDate: new Date(`${v.eventDate}:00+01:00`).toISOString(), talentNeeded: v.talentNeeded || undefined, budget: existing ? (budget ?? '') : budget };
     try {
       if (existing) {
         await api.patch(`/events/${existing.id}`, body);
-        toast.success('Event updated.');
+        const photosOk = await uploadPhotos(existing.id);
+        if (photosOk) toast.success('Event updated.');
         router.replace(`/promoter/events/${existing.id}`);
       } else {
         const created = await api.post<EventItem>('/events', { ...body, publish: intent === 'publish' });
-        toast.success(intent === 'publish' ? 'Event published — talent can now enrol.' : 'Draft saved.');
+        const photosOk = await uploadPhotos(created.id);
+        if (photosOk) toast.success(intent === 'publish' ? 'Event published — talent can now enrol.' : 'Draft saved.');
         router.replace(`/promoter/events/${created.id}`);
       }
     } catch (err) {
-      if (applyServerErrors(err, setError)) {
+      // The API reports budget problems on `budget`; show them under the budget fields.
+      const mapField: typeof setError = (field, e, o) => setError((String(field) === 'budget' ? 'budgetMin' : field) as typeof field, e, o);
+      if (applyServerErrors(err, mapField)) {
         setFormError('Please fix the highlighted fields.');
         return;
       }
@@ -87,7 +144,25 @@ export function EventForm({ existing }: { existing?: EventItem }) {
           <Input label="Venue / city" required placeholder="Bonanjo, Douala" error={errors.location?.message} {...register('location')} />
           <Input label="Date and time (Cameroon, UTC+1)" type="datetime-local" required error={errors.eventDate?.message} {...register('eventDate')} />
         </div>
-        <Input label="Budget" placeholder="150,000 – 300,000 FCFA" hint="Free text, shown to talent. Leave blank for “to be confirmed”." error={errors.budget?.message} {...register('budget')} />
+        <fieldset className="space-y-1.5">
+          <legend className="text-sm font-medium text-slate-800">Budget per talent (FCFA)</legend>
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-3 sm:grid-cols-2">
+            <Input aria-label="Minimum budget in FCFA" type="number" inputMode="numeric" min={0} step={5000} placeholder="Minimum, e.g. 150000" suffix="FCFA" error={errors.budgetMin?.message} {...register('budgetMin')} />
+            <Input aria-label="Maximum budget in FCFA" type="number" inputMode="numeric" min={0} step={5000} placeholder="Maximum, e.g. 300000" suffix="FCFA" error={errors.budgetMax?.message} {...register('budgetMax')} />
+          </div>
+          <p className="text-[13px] text-slate-500">{budgetPreview ? <>Talent will see: <span className="font-medium text-slate-800">{budgetPreview}</span></> : 'Amounts are in Central African CFA francs (XAF). Leave blank for “to be confirmed”.'}</p>
+        </fieldset>
+        <EventImagePicker
+          existing={images}
+          files={files}
+          onFilesChange={setFiles}
+          onRemoveExisting={existing ? (img) => void imageAction(img, 'remove') : undefined}
+          onMakeCover={existing ? (img) => void imageAction(img, 'cover') : undefined}
+          busyId={imageBusy}
+          disabled={isSubmitting}
+          error={imageError}
+          onError={setImageError}
+        />
         <Textarea label="Description" required rows={7} placeholder="What is the event, who attends, what will the talent be doing, and what do you expect from them?" error={errors.description?.message} {...register('description')} />
       </Card>
       <div className="mt-5 flex flex-wrap justify-end gap-3">

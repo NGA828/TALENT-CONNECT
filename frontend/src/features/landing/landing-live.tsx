@@ -7,11 +7,12 @@ import { formatDate, formatNumber } from '@/lib/format';
 import { ErrorState, Skeleton } from '@/components/ui/feedback';
 import { StarRating } from '@/components/ui/rating';
 import { Badge } from '@/components/ui/badge';
+import { EventThumb } from '@/features/events/event-ui';
 
 interface Landing {
   stats: { talents: number; promoters: number; events: number; contracts: number };
   featuredTalents: { id: string; name: string; specialization: string; location: string | null; ratingAvg: number; ratingCount: number; skills: string[]; cover: string | null }[];
-  upcomingEvents: { id: string; title: string; location: string; category: string | null; eventDate: string; agencyName: string; verified: boolean; enrollmentCount: number }[];
+  upcomingEvents: { id: string; title: string; location: string; category: string | null; eventDate: string; agencyName: string; verified: boolean; enrollmentCount: number; coverImageUrl: string | null }[];
   testimonials: { id: string; score: number; comment: string; author: string; agencyName: string; about: string }[];
   showcase: { id: string; title: string; mediaUrl: string; by: string; specialization: string }[];
 }
@@ -73,14 +74,10 @@ export function UpcomingEvents({ data }: { data: Landing['upcomingEvents'] }) {
   return (
     <ul className="divide-y divide-slate-200 overflow-hidden rounded-2xl border border-slate-200 bg-white">
       {data.slice(0, 5).map((e) => {
-        const d = new Date(e.eventDate);
         return (
           <li key={e.id}>
             <Link href="/register" className="flex items-center gap-4 px-4 py-4 transition-colors hover:bg-slate-50 sm:gap-6 sm:px-6">
-              <div className="flex size-16 shrink-0 flex-col items-center justify-center rounded-xl bg-accent-50 text-accent-700">
-                <span className="text-xs font-semibold uppercase">{d.toLocaleString('en-GB', { month: 'short' })}</span>
-                <span className="font-display text-2xl font-extrabold leading-none">{d.getDate()}</span>
-              </div>
+              <EventThumb event={e} className="h-16 w-24 sm:h-20 sm:w-28" />
               <div className="min-w-0 flex-1">
                 <h3 className="truncate font-display text-base font-bold text-slate-900">{e.title}</h3>
                 <p className="mt-0.5 flex flex-wrap items-center gap-x-3 text-sm text-slate-500">

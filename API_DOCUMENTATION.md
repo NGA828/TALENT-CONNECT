@@ -5,7 +5,7 @@ Base URL (development): `http://localhost:4000/api`. From the web app use the sa
 - All bodies are JSON unless marked **multipart**.
 - Every route requires `Authorization: Bearer <accessToken>` unless marked **public**.
 - Roles: `TALENT`, `PROMOTER`, `ADMIN`. A route without a role note is open to any authenticated user (with ownership rules noted in the description).
-- Dates are ISO-8601 strings. Money is a number plus a `currency` code.
+- Dates are ISO-8601 strings. Money is a number plus a `currency` code; all amounts are Central African CFA francs (`XAF`, shown as `FCFA`) in whole units.
 
 ## Conventions
 
@@ -107,6 +107,8 @@ All routes: PROMOTER.
 
 ## events
 
+Every event object includes `coverImageUrl` (first photo or `null`) and `images: [{ id, url, fileName }]` in display order. Dashboard and landing event summaries include `coverImageUrl`.
+
 Event statuses: `DRAFT → PUBLISHED / CANCELLED`, `PUBLISHED → DRAFT / ONGOING / CANCELLED`, `ONGOING → COMPLETED / CANCELLED`. Publishing and editing rules: a promoter must be `VERIFIED` to publish; completed/cancelled events cannot be edited; unpublishing is blocked once talent has enrolled; only `DRAFT` events without enrolments or contracts can be deleted.
 
 | Method & path | Access | Description |
@@ -114,12 +116,15 @@ Event statuses: `DRAFT → PUBLISHED / CANCELLED`, `PUBLISHED → DRAFT / ONGOIN
 | `GET /events` | any | Public browse (published/ongoing). Query `q, category, location, from, to, sort (date\|newest)`. Talent results include `enrolled` and `myContract`. |
 | `GET /events/mine` | PROMOTER | Own events. Query `status, q`; adds `counts`. |
 | `GET /events/enrolled/mine` | TALENT | Query `when (upcoming\|past\|all)`. |
-| `POST /events` | PROMOTER | `title, location, description (≥30 chars), category?, talentNeeded?, budget?, eventDate (future), publish?`. |
+| `POST /events` | PROMOTER | `title, location, description (≥30 chars), category?, talentNeeded?, budget?, eventDate (future), publish?`. `budget` is free text in FCFA (e.g. `300,000 – 450,000 FCFA`); text containing `$ € £ ₦` or `USD/EUR/GBP/NGN/GHS/ZAR/KES` is rejected with 422. Photos are added afterwards with `POST /events/:id/images`. |
 | `GET /events/:id` | any | Drafts are visible only to their owner (and admin). |
 | `PATCH /events/:id` | PROMOTER (owner) | Partial update. |
 | `DELETE /events/:id` | PROMOTER (owner) | See rules above. |
 | `PATCH /events/:id/status` | PROMOTER (owner) | `{ status }` following the transitions above. |
 | `POST /events/:id/publish` · `/unpublish` · `/cancel` | PROMOTER (owner) | Shortcuts. Cancelling notifies enrolled talent and cancels open contracts. |
+| `POST /events/:id/images` | PROMOTER (owner) | `multipart/form-data`, field **`images`** (one or more files). JPEG/PNG/GIF/WebP only (415 otherwise, magic bytes checked), 10 MB each (413), max 8 photos per event (400). Not allowed on `COMPLETED`/`CANCELLED` events (409). Returns the event. |
+| `PATCH /events/:id/images/:imageId/cover` | PROMOTER (owner) | Makes the photo the cover (moves it first). Returns the event. |
+| `DELETE /events/:id/images/:imageId` | PROMOTER (owner) | Removes the photo and its file. Returns the event. |
 | `GET /events/:id/enrollments` | PROMOTER (owner), ADMIN | Enrolled talent with notes. |
 | `POST /events/:id/enroll` | TALENT | `{ note? }`. 404 if the event is not `PUBLISHED`, 409 if already enrolled or the event date has passed. |
 | `DELETE /events/:id/enroll` | TALENT | Withdraw (blocked while an active contract exists). |
@@ -132,7 +137,7 @@ Statuses: `PENDING → ACTIVE (talent accepts) / REJECTED (talent declines) / CA
 | --- | --- | --- |
 | `GET /contracts` | TALENT, PROMOTER | Only your own contracts. Query `status, q`; adds `counts`. |
 | `GET /contracts/:id` | participants, ADMIN | 403 for anyone else. |
-| `POST /contracts` | PROMOTER (verified) | `talentId, eventId, terms, amount?, currency?, reviewNotes?, contractDate?`. The event must be yours and `PUBLISHED`/`ONGOING`. 409 if an open contract already exists for the pair. |
+| `POST /contracts` | PROMOTER (verified) | `talentId, eventId, terms, amount?, currency?, reviewNotes?, contractDate?`. `amount` is a whole number of FCFA (≤ 100,000,000); `currency` may be omitted or `XAF` — anything else is 422. The event must be yours and `PUBLISHED`/`ONGOING`. 409 if an open contract already exists for the pair. |
 | `PATCH /contracts/:id` | PROMOTER (owner) | `terms?, amount?, reviewNotes?` while `PENDING`/`ACTIVE`. |
 | `PATCH /contracts/:id/status` | PROMOTER (owner) | `{ status }` – only `CANCELLED` (from PENDING/ACTIVE) or `COMPLETED` (from ACTIVE). |
 | `POST /contracts/:id/document` | PROMOTER (owner) | **multipart**, field `file` (PDF). |

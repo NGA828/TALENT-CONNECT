@@ -14,7 +14,7 @@ import { StarRating } from '@/components/ui/rating';
 import { WorkspaceBand } from '@/components/layout/workspace-band';
 import { RecentNotifications } from '@/features/notifications/recent-notifications';
 import { useAuth } from '@/features/auth/auth-context';
-import { DateBlock } from '@/features/events/event-ui';
+import { EventThumb } from '@/features/events/event-ui';
 import { CompletionRing } from './completion-ring';
 
 function greeting() {
@@ -88,7 +88,7 @@ export function TalentDashboardPage() {
                       {d.upcomingEvents.map((e) => (
                         <li key={e.id}>
                           <Link href={`/talent/events/${e.id}`} className="flex items-center gap-4 px-5 py-3.5 hover:bg-slate-50">
-                            <DateBlock iso={e.eventDate} />
+                            <EventThumb event={e} className="h-16 w-24" />
                             <span className="min-w-0 flex-1">
                               <span className="block truncate font-medium text-slate-900">{e.title}</span>
                               <span className="flex items-center gap-1 truncate text-sm text-slate-500"><MapPin className="size-3.5 shrink-0" />{e.location} · {e.agencyName}</span>

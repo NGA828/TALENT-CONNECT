@@ -345,6 +345,33 @@ items.push(
       tests: `pm.test("Budget updated", function () {\n    pm.expect(pm.response.json().budget).to.include("300,000");\n});`,
     }),
     req({
+      name: 'Update event – foreign-currency budget (422)',
+      method: 'PATCH', path: '/events/{{eventId}}', token: 'promoterToken', expect: 422,
+      body: json({ budget: '$500 – $900' }),
+      tests: `pm.test(\"Budget must be in FCFA\", function () {\n    pm.expect(pm.response.json().errors.budget[0]).to.include(\"FCFA\");\n});`,
+    }),
+    req({
+      name: 'Upload event photos (multipart)',
+      method: 'POST', path: '/events/{{eventId}}/images', token: 'promoterToken', expect: 201,
+      body: form([file('images', 'backend/seed-assets/event-jazz-club.jpg'), file('images', 'backend/seed-assets/band-live-stage.jpg')]),
+      tests: `pm.test(\"Two photos attached; first is the cover\", function () {\n    const b = pm.response.json();\n    pm.expect(b.images).to.have.lengthOf(2);\n    pm.expect(b.coverImageUrl).to.eql(b.images[0].url);\n    pm.collectionVariables.set(\"eventImageId\", b.images[1].id);\n});`,
+    }),
+    req({
+      name: 'Upload event photo – not an image (415)',
+      method: 'POST', path: '/events/{{eventId}}/images', token: 'promoterToken', expect: 415,
+      body: form([file('images', 'backend/seed-assets/sample-contract.pdf')]),
+    }),
+    req({
+      name: 'Set event cover photo',
+      method: 'PATCH', path: '/events/{{eventId}}/images/{{eventImageId}}/cover', token: 'promoterToken', expect: 200,
+      tests: `pm.test(\"Chosen photo is now the cover\", function () {\n    const b = pm.response.json();\n    pm.expect(b.images[0].id).to.eql(pm.collectionVariables.get(\"eventImageId\"));\n    pm.expect(b.coverImageUrl).to.eql(b.images[0].url);\n});`,
+    }),
+    req({
+      name: 'Delete event photo',
+      method: 'DELETE', path: '/events/{{eventId}}/images/{{eventImageId}}', token: 'promoterToken', expect: 200,
+      tests: `pm.test(\"One photo left\", function () {\n    pm.expect(pm.response.json().images).to.have.lengthOf(1);\n});`,
+    }),
+    req({
       name: 'Enrol in event (talent)',
       method: 'POST', path: '/events/{{eventId}}/enroll', token: 'talentToken', expect: 201,
       body: json({ note: 'Available all evening – I can deliver selects within 48 hours.' }),
@@ -584,7 +611,7 @@ const collection = {
     'runId', 'futureDate', 'licenceExpiry', 'expYear',
     'adminToken', 'talentToken', 'promoterToken', 'newTalentToken', 'newPromoterToken',
     'talentUserId', 'talentId', 'promoterUserId', 'newTalentUserId', 'newPromoterUserId', 'newPromoterId',
-    'portfolioId', 'eventId', 'draftEventId', 'contractId', 'messageId', 'notificationId', 'paymentId',
+    'portfolioId', 'eventId', 'eventImageId', 'draftEventId', 'contractId', 'messageId', 'notificationId', 'paymentId',
   ].map((key) => ({ key, value: '' })),
   item: items,
 };

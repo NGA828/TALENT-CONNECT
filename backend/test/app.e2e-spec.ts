@@ -256,6 +256,41 @@ describe('Talent Connect API (e2e)', () => {
       expect((await post(`/api/events/${eventId}/cancel`, nadia)).status).toBe(403);
       expect((await patch(`/api/events/${eventId}`, jordan, { title: 'Rooftop Jazz Evening – Late Edition' })).status).toBe(200);
     });
+    it('rejects budgets in foreign currencies (FCFA only)', async () => {
+      expect((await post('/api/events', jordan, { ...body, budget: '$500 – $900' })).status).toBe(422);
+      expect((await post('/api/events', jordan, { ...body, budget: '1,500 EUR' })).status).toBe(422);
+      expect((await patch(`/api/events/${eventId}`, jordan, { budget: '2000 USD' })).status).toBe(422);
+      const ok = await patch(`/api/events/${eventId}`, jordan, { budget: '300,000 – 450,000 FCFA' });
+      expect(ok.status).toBe(200);
+      expect(ok.body.budget).toBe('300,000 – 450,000 FCFA');
+    });
+    it('uploads, reorders and deletes event photos (owner only, images only)', async () => {
+      const up = await http.post(`/api/events/${eventId}/images`).set(auth(jordan)).attach('images', PNG, { filename: 'cover.png', contentType: 'image/png' }).attach('images', PNG, { filename: 'second.png', contentType: 'image/png' });
+      expect(up.status).toBe(201);
+      expect(up.body.images).toHaveLength(2);
+      expect(up.body.coverImageUrl).toBe(up.body.images[0].url);
+      expect(up.body.images[0].url).toMatch(/^\/uploads\/events\//);
+      expect((await http.get(up.body.images[0].url)).status).toBe(200);
+      const second = up.body.images[1];
+      const cover = await patch(`/api/events/${eventId}/images/${second.id}/cover`, jordan, {});
+      expect(cover.status).toBe(200);
+      expect(cover.body.coverImageUrl).toBe(second.url);
+      // talents see the photos in listings
+      const list = await get('/api/events?pageSize=100', alex);
+      expect(list.body.items.find((e: any) => e.id === eventId).coverImageUrl).toBe(second.url);
+      // ownership, file type and missing-file checks
+      expect((await http.post(`/api/events/${eventId}/images`).set(auth(nadia)).attach('images', PNG, { filename: 'x.png', contentType: 'image/png' })).status).toBe(403);
+      expect((await http.post(`/api/events/${eventId}/images`).set(auth(alex)).attach('images', PNG, { filename: 'x.png', contentType: 'image/png' })).status).toBe(403);
+      expect((await http.post(`/api/events/${eventId}/images`).set(auth(jordan)).attach('images', Buffer.from('%PDF-1.4 not an image'), { filename: 'doc.pdf', contentType: 'application/pdf' })).status).toBe(415);
+      expect((await http.post(`/api/events/${eventId}/images`).set(auth(jordan))).status).toBe(400);
+      let req = http.post(`/api/events/${eventId}/images`).set(auth(jordan));
+      for (let i = 0; i < 7; i++) req = req.attach('images', PNG, { filename: `p${i}.png`, contentType: 'image/png' });
+      expect((await req).status).toBe(400); // 2 + 7 > 8
+      const del = await http.delete(`/api/events/${eventId}/images/${second.id}`).set(auth(jordan));
+      expect(del.status).toBe(200);
+      expect(del.body.images).toHaveLength(1);
+      expect((await http.delete(`/api/events/${eventId}/images/${second.id}`).set(auth(jordan))).status).toBe(404);
+    });
     it('enrolls a talent once and rejects duplicates (409)', async () => {
       const first = await post(`/api/events/${eventId}/enroll`, alex, {});
       expect(first.status).toBe(201);
@@ -322,13 +357,19 @@ describe('Talent Connect API (e2e)', () => {
       eventId = ev.body.id;
     });
     it('promoter creates a contract; talent is notified', async () => {
-      const res = await post('/api/contracts', jordan, { talentId, eventId, terms: 'Photography coverage for six hours with 100 retouched images delivered in 72 hours.', amount: 1500, currency: 'USD' });
+      const res = await post('/api/contracts', jordan, { talentId, eventId, terms: 'Photography coverage for six hours with 100 retouched images delivered in 72 hours.', amount: 1500000, currency: 'XAF' });
       expect(res.status).toBe(201);
       expect(res.body.status).toBe('PENDING');
       contractId = res.body.id;
       const n = await get('/api/notifications?pageSize=3', alex);
       expect(n.body.items.some((x: any) => /contract/i.test(x.title))).toBe(true);
       expect((await post('/api/contracts', jordan, { talentId, eventId, terms: 'Duplicate contract attempt for the same event.' })).status).toBe(409);
+    });
+    it('only accepts whole FCFA amounts for contracts', async () => {
+      expect((await post('/api/contracts', jordan, { talentId, eventId, terms: 'Photography coverage for six hours, paid in dollars.', amount: 1500, currency: 'USD' })).status).toBe(422);
+      expect((await post('/api/contracts', jordan, { talentId, eventId, terms: 'Photography coverage for six hours with decimals.', amount: 1500.5 })).status).toBe(422);
+      const c = await get(`/api/contracts/${contractId}`, jordan);
+      expect(c.body.currency).toBe('XAF');
     });
     it('enforces who may create contracts', async () => {
       expect((await post('/api/contracts', alex, { talentId, eventId, terms: 'x'.repeat(30) })).status).toBe(403);
@@ -355,7 +396,7 @@ describe('Talent Connect API (e2e)', () => {
       const accepted = await post(`/api/contracts/${contractId}/respond`, alex, { decision: 'ACCEPT', note: 'Confirmed.' });
       expect(accepted.body.status).toBe('ACTIVE');
       expect((await post(`/api/contracts/${contractId}/respond`, alex, { decision: 'ACCEPT' })).status).toBe(409);
-      const edited = await patch(`/api/contracts/${contractId}`, jordan, { amount: 1800 });
+      const edited = await patch(`/api/contracts/${contractId}`, jordan, { amount: 1800000 });
       expect(edited.body.status).toBe('PENDING');
       await post(`/api/contracts/${contractId}/respond`, alex, { decision: 'ACCEPT' });
     });

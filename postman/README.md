@@ -4,7 +4,7 @@ This folder holds the Postman test suite for the REST API and screenshots of eve
 
 | File / folder | What it is |
 | --- | --- |
-| [`TalentConnect.postman_collection.json`](TalentConnect.postman_collection.json) | Postman collection (v2.1): **15 folders, 108 requests, 405 test assertions** |
+| [`TalentConnect.postman_collection.json`](TalentConnect.postman_collection.json) | Postman collection (v2.1): **15 folders, 113 requests, 426 test assertions** |
 | [`TalentConnect.local.postman_environment.json`](TalentConnect.local.postman_environment.json) | Environment: `baseUrl` and the seeded demo logins |
 | [`screenshots/`](screenshots/README.md) | One screenshot per request plus Collection Runner summaries. **Start with [`screenshots/README.md`](screenshots/README.md)** |
 | `scripts/build-collection.js` | Builds the collection and environment JSON files |

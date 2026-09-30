@@ -1,8 +1,10 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UploadedFiles, UseInterceptors } from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
 import { EventStatus, Role } from '@prisma/client';
 import { AuthUser, CurrentUser, Roles } from '../common/decorators';
 import { BrowseEventsQuery, CreateEventDto, EnrollDto, MyEnrollmentsQuery, MyEventsQuery, SetStatusDto, UpdateEventDto } from './dto/events.dto';
-import { EventsService } from './events.service';
+import { EventsService, MAX_EVENT_IMAGES } from './events.service';
 
 @Controller('events')
 export class EventsController {
@@ -62,6 +64,23 @@ export class EventsController {
   @Roles(Role.PROMOTER) @Post(':id/cancel')
   cancel(@CurrentUser('promoterId') promoterId: string, @Param('id') id: string) {
     return this.events.transition(promoterId, id, EventStatus.CANCELLED);
+  }
+
+  /** multipart/form-data, field `images` (one or more JPEG/PNG/GIF/WebP files, 10 MB each). */
+  @Roles(Role.PROMOTER) @Post(':id/images')
+  @UseInterceptors(FilesInterceptor('images', MAX_EVENT_IMAGES, { storage: memoryStorage(), limits: { fileSize: 10 * 1024 * 1024, files: MAX_EVENT_IMAGES } }))
+  addImages(@CurrentUser('promoterId') promoterId: string, @Param('id') id: string, @UploadedFiles() files?: Express.Multer.File[]) {
+    return this.events.addImages(promoterId, id, files);
+  }
+
+  @Roles(Role.PROMOTER) @Patch(':id/images/:imageId/cover')
+  setCover(@CurrentUser('promoterId') promoterId: string, @Param('id') id: string, @Param('imageId') imageId: string) {
+    return this.events.setCover(promoterId, id, imageId);
+  }
+
+  @Roles(Role.PROMOTER) @Delete(':id/images/:imageId')
+  removeImage(@CurrentUser('promoterId') promoterId: string, @Param('id') id: string, @Param('imageId') imageId: string) {
+    return this.events.removeImage(promoterId, id, imageId);
   }
 
   @Roles(Role.PROMOTER, Role.ADMIN) @Get(':id/enrollments')

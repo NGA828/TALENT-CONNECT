@@ -4,6 +4,7 @@ import type { EventItem } from '@/lib/types';
 import { formatDate } from '@/lib/format';
 import { cn } from '@/lib/cn';
 import { Badge, StatusBadge } from '@/components/ui/badge';
+import { EventCover } from './event-images';
 
 export function DateBlock({ iso, className }: { iso: string; className?: string }) {
   const d = new Date(iso);
@@ -11,6 +12,20 @@ export function DateBlock({ iso, className }: { iso: string; className?: string 
     <div className={cn('flex size-16 shrink-0 flex-col items-center justify-center rounded-xl bg-accent-50 text-accent-700', className)}>
       <span className="text-[11px] font-bold uppercase tracking-wide">{d.toLocaleString('en-GB', { month: 'short' })}</span>
       <span className="font-display text-2xl font-extrabold leading-none">{d.getDate()}</span>
+    </div>
+  );
+}
+
+/** Small cover photo with the date pinned on top — used in lists and dashboards. */
+export function EventThumb({ event, className }: { event: { title: string; category?: string | null; eventDate: string; coverImageUrl?: string | null }; className?: string }) {
+  const d = new Date(event.eventDate);
+  return (
+    <div className={cn('relative h-20 w-28 shrink-0 overflow-hidden rounded-xl', className)}>
+      <EventCover event={{ title: event.title, category: event.category ?? null, coverImageUrl: event.coverImageUrl }} className="size-full" iconClassName="size-7" />
+      <span className="absolute left-1.5 top-1.5 flex flex-col items-center rounded-md bg-white/95 px-1.5 py-0.5 leading-none text-accent-700 shadow-sm">
+        <span className="text-[9px] font-bold uppercase tracking-wide">{d.toLocaleString('en-GB', { month: 'short' })}</span>
+        <span className="font-display text-base font-extrabold">{d.getDate()}</span>
+      </span>
     </div>
   );
 }
@@ -38,7 +53,14 @@ export function AgencyLabel({ promoter }: { promoter: EventItem['promoter'] }) {
 /** Card used by the talent event browser. Actions are passed in so the parent owns the API calls. */
 export function EventCard({ event, href, actions }: { event: EventItem; href: string; actions?: React.ReactNode }) {
   return (
-    <article className="flex flex-col rounded-card border border-slate-200 bg-white p-5 shadow-xs transition-shadow hover:shadow-md">
+    <article className="group flex flex-col overflow-hidden rounded-card border border-slate-200 bg-white shadow-xs transition-shadow hover:shadow-md">
+      <Link href={href} tabIndex={-1} aria-hidden className="relative block overflow-hidden">
+        <EventCover event={event} className="aspect-[16/9] w-full transition-transform duration-500 group-hover:scale-[1.03]" />
+        {event.images && event.images.length > 1 && (
+          <span className="absolute bottom-2 right-2 rounded-full bg-ink/70 px-2 py-0.5 text-[11px] font-medium text-white">{event.images.length} photos</span>
+        )}
+      </Link>
+      <div className="flex flex-1 flex-col p-5">
       <div className="flex items-start gap-4">
         <DateBlock iso={event.eventDate} />
         <div className="min-w-0 flex-1">
@@ -57,6 +79,7 @@ export function EventCard({ event, href, actions }: { event: EventItem; href: st
       <EventMeta event={event} className="mt-4" />
       {event.talentNeeded && <p className="mt-3 text-sm text-slate-500">Looking for: <span className="font-medium text-slate-800">{event.talentNeeded}</span></p>}
       <div className="mt-auto flex flex-wrap items-center gap-2 pt-5">{actions}</div>
+      </div>
     </article>
   );
 }

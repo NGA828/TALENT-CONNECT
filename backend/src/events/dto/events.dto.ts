@@ -1,9 +1,14 @@
 
-import { IsBoolean, IsDateString, IsIn, IsOptional, IsString, MaxLength, MinLength, IsEnum } from 'class-validator';
+import { IsBoolean, IsDateString, IsIn, IsOptional, IsString, Matches, MaxLength, MinLength, IsEnum } from 'class-validator';
 import { EventStatus } from '@prisma/client';
 import { EVENT_CATEGORIES } from '../../common/constants';
 import { PaginationQuery } from '../../common/utils/pagination';
 import { EmptyToUndefined, Sanitize } from '../../common/utils/sanitize';
+import { FOREIGN_CURRENCY_PATTERN } from '../../common/utils/money';
+
+/** Budgets are free text shown to talent, but must be expressed in FCFA (no $, €, USD, …). */
+const FCFA_ONLY = new RegExp(`^(?![\\s\\S]*${FOREIGN_CURRENCY_PATTERN.source})[\\s\\S]*$`, 'i');
+const FcfaBudget = () => Matches(FCFA_ONLY, { message: 'Express the budget in FCFA (Central African CFA francs), e.g. 300,000 – 450,000 FCFA.' });
 
 export class CreateEventDto {
   @Sanitize() @IsString() @MinLength(3) @MaxLength(120)
@@ -21,7 +26,7 @@ export class CreateEventDto {
   @EmptyToUndefined() @Sanitize() @IsOptional() @IsString() @MaxLength(120)
   talentNeeded?: string;
 
-  @EmptyToUndefined() @Sanitize() @IsOptional() @IsString() @MaxLength(80)
+  @EmptyToUndefined() @Sanitize() @IsOptional() @IsString() @MaxLength(80) @FcfaBudget()
   budget?: string;
 
   @IsDateString({}, { message: 'Provide a valid event date.' })
@@ -48,7 +53,7 @@ export class UpdateEventDto {
   @Sanitize() @IsOptional() @IsString() @MaxLength(120)
   talentNeeded?: string;
 
-  @Sanitize() @IsOptional() @IsString() @MaxLength(80)
+  @Sanitize() @IsOptional() @IsString() @MaxLength(80) @FcfaBudget()
   budget?: string;
 
   @IsOptional() @IsDateString()

@@ -13,6 +13,7 @@ import { StatusBadge } from '@/components/ui/badge';
 import { WorkspaceBand } from '@/components/layout/workspace-band';
 import { RecentNotifications } from '@/features/notifications/recent-notifications';
 import { humanize } from '@/lib/format';
+import { EventCover } from '@/features/events/event-images';
 
 const pipeline: { status: EventStatus; bar: string }[] = [
   { status: 'DRAFT', bar: 'bg-slate-300' },
@@ -82,7 +83,7 @@ export function PromoterDashboardPage() {
                         <tbody className="divide-y divide-slate-100">
                           {d.upcomingEvents.map((e) => (
                             <tr key={e.id} className="hover:bg-slate-50">
-                              <td className="px-5 py-3"><Link href={`/promoter/events/${e.id}`} className="font-medium text-slate-900 hover:text-accent-700">{e.title}</Link><p className="text-xs text-slate-500">{e.location}</p></td>
+                              <td className="px-5 py-3"><div className="flex items-center gap-3"><EventCover event={{ title: e.title, category: null, coverImageUrl: e.coverImageUrl }} className="h-10 w-14 rounded-md" iconClassName="size-4" /><div className="min-w-0"><Link href={`/promoter/events/${e.id}`} className="font-medium text-slate-900 hover:text-accent-700">{e.title}</Link><p className="text-xs text-slate-500">{e.location}</p></div></div></td>
                               <td className="whitespace-nowrap px-5 py-3 text-slate-600">{formatDate(e.eventDate)}</td>
                               <td className="px-5 py-3"><StatusBadge status={e.status} /></td>
                               <td className="px-5 py-3 text-right font-semibold tabular-nums">{e.enrollmentCount}</td>

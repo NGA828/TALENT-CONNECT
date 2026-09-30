@@ -1,10 +1,11 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { ContractStatus, EventStatus, LicenceStatus, NotificationType, Prisma, Role } from '@prisma/client';
+import { ContractStatus, EventStatus, LicenceStatus, MediaType, NotificationType, Prisma, Role } from '@prisma/client';
 import { splitSkills } from '../auth/auth.service';
 import { AuthUser } from '../common/decorators';
 import { pageArgs, toPage } from '../common/utils/pagination';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { StorageService, UploadedFileLike } from '../storage/storage.service';
 import { BrowseEventsQuery, CreateEventDto, EnrollDto, MyEnrollmentsQuery, MyEventsQuery, UpdateEventDto } from './dto/events.dto';
 
 const TRANSITIONS: Record<EventStatus, EventStatus[]> = {
@@ -22,8 +23,12 @@ const eventInclude = {
       user: { select: { firstName: true, lastName: true, avatarUrl: true } },
     },
   },
+  images: { orderBy: [{ position: 'asc' }, { createdAt: 'asc' }], select: { id: true, url: true, fileName: true, position: true } },
   _count: { select: { enrollments: true, contracts: true } },
 } satisfies Prisma.EventInclude;
+
+/** Maximum number of photos per event (the first one is the cover). */
+export const MAX_EVENT_IMAGES = 8;
 
 type EventWithRel = Prisma.EventGetPayload<{ include: typeof eventInclude }>;
 
@@ -32,6 +37,7 @@ export class EventsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
+    private readonly storage: StorageService,
   ) {}
 
   private map(e: EventWithRel, extra: Record<string, unknown> = {}) {
@@ -45,6 +51,8 @@ export class EventsService {
       budget: e.budget,
       eventDate: e.eventDate,
       status: e.status,
+      coverImageUrl: e.images[0]?.url ?? null,
+      images: e.images.map((i) => ({ id: i.id, url: i.url, fileName: i.fileName })),
       createdAt: e.createdAt,
       updatedAt: e.updatedAt,
       enrollmentCount: e._count.enrollments,
@@ -239,8 +247,71 @@ export class EventsService {
     if (event.status !== EventStatus.DRAFT || enrollments > 0 || contracts > 0) {
       throw new ConflictException('Only draft events without enrollments or contracts can be deleted. Cancel the event instead.');
     }
+    const images = await this.prisma.eventImage.findMany({ where: { eventId: id }, select: { url: true } });
     await this.prisma.event.delete({ where: { id } });
+    await Promise.all(images.map((i) => this.storage.remove(i.url)));
     return { success: true };
+  }
+
+  // ─────────────── event photos ───────────────
+
+  private assertImagesEditable(event: { status: EventStatus }) {
+    if (event.status === EventStatus.COMPLETED || event.status === EventStatus.CANCELLED) {
+      throw new ConflictException(`Photos of a ${event.status.toLowerCase()} event can no longer be changed.`);
+    }
+  }
+
+  private async reloadEvent(id: string) {
+    return this.map(await this.prisma.event.findUniqueOrThrow({ where: { id }, include: eventInclude }));
+  }
+
+  /** Adds photos to an event. Only JPEG, PNG, GIF and WebP images are accepted (max 10 MB each). */
+  async addImages(promoterId: string, id: string, files: UploadedFileLike[] | undefined) {
+    const event = await this.ownedEvent(promoterId, id);
+    this.assertImagesEditable(event);
+    if (!files?.length) throw new BadRequestException('Choose at least one image to upload.');
+    const existing = await this.prisma.eventImage.findMany({ where: { eventId: id }, select: { position: true } });
+    if (existing.length + files.length > MAX_EVENT_IMAGES) {
+      throw new BadRequestException(`An event can have at most ${MAX_EVENT_IMAGES} photos. You can add ${Math.max(0, MAX_EVENT_IMAGES - existing.length)} more.`);
+    }
+    // Validate every file first so a bad file in the batch does not leave half the upload behind.
+    files.forEach((f) => this.storage.validate(f, [MediaType.IMAGE]));
+    let position = existing.reduce((max, i) => Math.max(max, i.position), -1);
+    const saved: string[] = [];
+    try {
+      for (const file of files) {
+        const stored = await this.storage.save(file, 'events', [MediaType.IMAGE]);
+        saved.push(stored.url);
+        position += 1;
+        await this.prisma.eventImage.create({ data: { eventId: id, url: stored.url, fileName: stored.fileName, mimeType: stored.mimeType, fileSize: stored.size, position } });
+      }
+    } catch (err) {
+      await this.prisma.eventImage.deleteMany({ where: { eventId: id, url: { in: saved } } });
+      await Promise.all(saved.map((u) => this.storage.remove(u)));
+      throw err;
+    }
+    return this.reloadEvent(id);
+  }
+
+  /** Makes one photo the cover by moving it to the first position. */
+  async setCover(promoterId: string, id: string, imageId: string) {
+    const event = await this.ownedEvent(promoterId, id);
+    this.assertImagesEditable(event);
+    const images = await this.prisma.eventImage.findMany({ where: { eventId: id }, orderBy: [{ position: 'asc' }, { createdAt: 'asc' }], select: { id: true } });
+    if (!images.some((i) => i.id === imageId)) throw new NotFoundException('Photo not found.');
+    const ordered = [imageId, ...images.map((i) => i.id).filter((x) => x !== imageId)];
+    await this.prisma.$transaction(ordered.map((imgId, position) => this.prisma.eventImage.update({ where: { id: imgId }, data: { position } })));
+    return this.reloadEvent(id);
+  }
+
+  async removeImage(promoterId: string, id: string, imageId: string) {
+    const event = await this.ownedEvent(promoterId, id);
+    this.assertImagesEditable(event);
+    const image = await this.prisma.eventImage.findFirst({ where: { id: imageId, eventId: id } });
+    if (!image) throw new NotFoundException('Photo not found.');
+    await this.prisma.eventImage.delete({ where: { id: imageId } });
+    await this.storage.remove(image.url);
+    return this.reloadEvent(id);
   }
 
   async enrollments(user: AuthUser, id: string) {

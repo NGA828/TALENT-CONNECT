@@ -1,3 +1,4 @@
+import { formatMoney } from '../common/utils/money';
 import { ConflictException, ForbiddenException, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { LicenceStatus, NotificationType, PaymentPurpose, PaymentStatus } from '@prisma/client';
@@ -102,7 +103,7 @@ export class PaymentsService {
       await this.notifications.create(user.id, {
         type: NotificationType.PAYMENT,
         title: 'Payment successful',
-        message: `Your licence fee of ${payment.currency} ${payment.amount.toFixed(2)} was received.`,
+        message: `Your licence fee of ${formatMoney(payment.amount, payment.currency)} was received.`,
         link: '/promoter/payments',
       });
     } else {
@@ -155,7 +156,7 @@ export class PaymentsService {
     await this.notifications.create(payment.promoter.userId, {
       type: NotificationType.PAYMENT,
       title: 'Payment refunded',
-      message: `Your payment of ${payment.currency} ${payment.amount.toFixed(2)} was refunded by an administrator.`,
+      message: `Your payment of ${formatMoney(payment.amount, payment.currency)} was refunded by an administrator.`,
       link: '/promoter/payments',
     });
     return updated;

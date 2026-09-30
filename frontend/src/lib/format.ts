@@ -60,3 +60,25 @@ export function toLocalInput(iso?: string | null) {
   // Cameroon is UTC+01:00 year-round, independent of the browser timezone.
   return new Date(new Date(iso).getTime() + 60 * 60 * 1000).toISOString().slice(0, 16);
 }
+
+const fcfaNumber = (n: number) => new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(n);
+
+/** Builds the budget text shown to talent from a min/max in FCFA, e.g. "300,000 – 450,000 FCFA". */
+export function formatFcfaBudget(min?: number | null, max?: number | null): string | undefined {
+  const lo = min ?? undefined;
+  const hi = max ?? undefined;
+  if (lo !== undefined && hi !== undefined) return lo === hi ? `${fcfaNumber(lo)} FCFA` : `${fcfaNumber(lo)} – ${fcfaNumber(hi)} FCFA`;
+  if (lo !== undefined) return `From ${fcfaNumber(lo)} FCFA`;
+  if (hi !== undefined) return `Up to ${fcfaNumber(hi)} FCFA`;
+  return undefined;
+}
+
+/** Reads the min/max back out of a budget string written by formatFcfaBudget (or typed by hand). */
+export function parseFcfaBudget(text?: string | null): { min?: number; max?: number } {
+  if (!text) return {};
+  const nums = (text.match(/\d[\d\s,.\u202f\u00a0]*/g) ?? []).map((n) => Number(n.replace(/[^\d]/g, ''))).filter((n) => Number.isFinite(n) && n > 0);
+  if (nums.length === 0) return {};
+  if (/^\s*up to/i.test(text)) return { max: nums[0] };
+  if (/^\s*from/i.test(text) && nums.length === 1) return { min: nums[0] };
+  return nums.length === 1 ? { min: nums[0], max: nums[0] } : { min: nums[0], max: nums[1] };
+}

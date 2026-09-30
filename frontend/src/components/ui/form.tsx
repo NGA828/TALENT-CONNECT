@@ -48,14 +48,22 @@ interface CommonProps {
   wrapperClassName?: string;
 }
 
-export const Input = forwardRef<HTMLInputElement, CommonProps & InputHTMLAttributes<HTMLInputElement>>(function Input(
-  { label, hint, error, wrapperClassName, className, required, ...rest },
+export const Input = forwardRef<HTMLInputElement, CommonProps & { suffix?: ReactNode } & InputHTMLAttributes<HTMLInputElement>>(function Input(
+  { label, hint, error, wrapperClassName, className, required, suffix, ...rest },
   ref,
 ) {
   const id = useId();
+  const input = <input ref={ref} id={id} required={required} aria-invalid={!!error || undefined} aria-describedby={error ? `${id}-error` : hint ? `${id}-hint` : undefined} className={cn(control, 'h-10', suffix ? 'pr-16' : undefined, error && invalid, className)} {...rest} />;
   return (
     <FieldShell id={id} label={label} hint={hint} error={error} required={required} className={wrapperClassName}>
-      <input ref={ref} id={id} required={required} aria-invalid={!!error || undefined} aria-describedby={error ? `${id}-error` : hint ? `${id}-hint` : undefined} className={cn(control, 'h-10', error && invalid, className)} {...rest} />
+      {suffix ? (
+        <div className="relative">
+          {input}
+          <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm font-medium text-slate-500">{suffix}</span>
+        </div>
+      ) : (
+        input
+      )}
     </FieldShell>
   );
 });

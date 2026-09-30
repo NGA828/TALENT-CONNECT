@@ -39,7 +39,7 @@ export class PublicController {
         where: { status: EventStatus.PUBLISHED, eventDate: { gte: now } },
         orderBy: { eventDate: 'asc' },
         take: 4,
-        include: { promoter: { select: { agencyName: true, licenceStatus: true } }, _count: { select: { enrollments: true } } },
+        include: { promoter: { select: { agencyName: true, licenceStatus: true } }, _count: { select: { enrollments: true } }, images: { orderBy: [{ position: 'asc' as const }, { createdAt: 'asc' as const }], take: 1, select: { url: true } } },
       }),
       this.prisma.rating.findMany({
         where: { score: { gte: 4 }, comment: { not: null } },
@@ -79,6 +79,7 @@ export class PublicController {
         agencyName: e.promoter.agencyName,
         verified: e.promoter.licenceStatus === LicenceStatus.VERIFIED,
         enrollmentCount: e._count.enrollments,
+        coverImageUrl: e.images[0]?.url ?? null,
       })),
       testimonials: reviews.map((r) => ({
         id: r.id,

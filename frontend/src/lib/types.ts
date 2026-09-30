@@ -132,6 +132,12 @@ export interface PromoterPublic {
   avatarUrl: string | null;
 }
 
+export interface EventImage {
+  id: string;
+  url: string;
+  fileName: string | null;
+}
+
 export interface EventItem {
   id: string;
   title: string;
@@ -142,6 +148,9 @@ export interface EventItem {
   budget: string | null;
   eventDate: string;
   status: EventStatus;
+  /** First photo of the event, or null when none were added. */
+  coverImageUrl: string | null;
+  images: EventImage[];
   createdAt: string;
   updatedAt: string;
   enrollmentCount: number;
@@ -319,7 +328,7 @@ export interface TalentDashboard {
   rating: { average: number; count: number };
   portfolio: { total: number; published: number };
   upcomingEventsCount: number;
-  upcomingEvents: { id: string; title: string; location: string; eventDate: string; status: EventStatus; agencyName: string }[];
+  upcomingEvents: { id: string; title: string; location: string; eventDate: string; status: EventStatus; agencyName: string; coverImageUrl: string | null }[];
   contracts: { active: number; pending: number; completed: number; total: number };
   pendingContracts: { id: string; eventTitle: string; eventDate: string; agencyName: string; createdAt: string }[];
   unreadMessages: number;
@@ -334,7 +343,7 @@ export interface PromoterDashboard {
   talentsOnPlatform: number;
   talentsInMyEvents: number;
   payments: { totalPaid: number; count: number; last: Payment | null };
-  upcomingEvents: { id: string; title: string; location: string; eventDate: string; status: EventStatus; enrollmentCount: number }[];
+  upcomingEvents: { id: string; title: string; location: string; eventDate: string; status: EventStatus; enrollmentCount: number; coverImageUrl: string | null }[];
   recentEnrollments: { id: string; enrolledAt: string; event: { id: string; title: string }; talent: { id: string; name: string; specialization: string; avatarUrl: string | null } }[];
   pendingContracts: { id: string; eventTitle: string; talentName: string; createdAt: string }[];
   unreadMessages: number;
