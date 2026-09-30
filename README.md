@@ -36,7 +36,7 @@ npm install
 npm run dev                     # http://localhost:3000
 ```
 
-Shortcut: `./scripts/dev-setup.sh` does the install, `.env` (with a fresh random `JWT_SECRET`), Prisma client, database creation/seeding and API build in one go. Then run `node dist/main.js` in `backend/` and `npm run build && npm run start` in `frontend/` (or `npm run dev`). Do not run `next build` while `next dev` is running, because both write to `.next`.
+Shortcut: `./scripts/dev-start.sh` runs setup, the API (:4000) and the production web build (:3000) in one command. `./scripts/dev-setup.sh` alone does the install, `.env` (with a fresh random `JWT_SECRET`), Prisma client, database creation/seeding and API build in one go. Then run `node dist/main.js` in `backend/` and `npm run build && npm run start` in `frontend/` (or `npm run dev`). Do not run `next build` while `next dev` is running, because both write to `.next`.
 
 `npm run db:reset` in `backend/` deletes the dev database, re-applies the migrations and re-seeds it.
 
