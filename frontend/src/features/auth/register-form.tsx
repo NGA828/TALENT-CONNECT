@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input, Select, Textarea } from '@/components/ui/form';
 import { Alert } from '@/components/ui/feedback';
 import { ApiError } from '@/lib/api';
-import { applyServerErrors } from '@/lib/hooks';
+import { applyServerErrors, useHydrated } from '@/lib/hooks';
 import { humanize } from '@/lib/format';
 import { useApi } from '@/lib/use-api';
 import type { PublicMeta } from '@/lib/types';
@@ -124,6 +124,7 @@ function useSubmit(role: 'talent' | 'promoter') {
 }
 
 function TalentForm() {
+  const hydrated = useHydrated();
   const meta = useApi<PublicMeta>('/public/meta');
   const { formError, submit } = useSubmit('talent');
   const { register, handleSubmit, setError, formState: { errors, isSubmitting } } = useForm<TalentValues>({ resolver: zodResolver(talentSchema), defaultValues: { gender: '', specialization: '' } });
@@ -143,12 +144,13 @@ function TalentForm() {
         </Select>
       </div>
       <PasswordFields register={register as never} errors={errors as never} />
-      <Button type="submit" size="lg" className="w-full" loading={isSubmitting}>Create talent account</Button>
+      <Button type="submit" size="lg" className="w-full" loading={isSubmitting} disabled={!hydrated}>Create talent account</Button>
     </form>
   );
 }
 
 function PromoterForm() {
+  const hydrated = useHydrated();
   const { formError, submit } = useSubmit('promoter');
   const { register, handleSubmit, setError, formState: { errors, isSubmitting } } = useForm<PromoterValues>({ resolver: zodResolver(promoterSchema) });
   return (
@@ -159,7 +161,7 @@ function PromoterForm() {
       <Input label="Licence number" required hint="You can upload the licence document and pay the verification fee after signing up." error={errors.licenceNumber?.message} {...register('licenceNumber')} />
       <Textarea label="Licence information" rows={3} placeholder="Issuing authority, licence type, expiry date…" error={errors.licenceInfo?.message} {...register('licenceInfo')} />
       <PasswordFields register={register as never} errors={errors as never} />
-      <Button type="submit" size="lg" className="w-full" loading={isSubmitting}>Create promoter account</Button>
+      <Button type="submit" size="lg" className="w-full" loading={isSubmitting} disabled={!hydrated}>Create promoter account</Button>
     </form>
   );
 }

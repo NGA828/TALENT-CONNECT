@@ -1,78 +1,57 @@
 'use client';
 
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { ChevronLeft, ChevronRight, Pause, Play } from 'lucide-react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { cn } from '@/lib/cn';
 
 export interface Slide {
   src: string;
   alt: string;
-  /** Shown bottom-left over the image when `showCaption` is on. */
+  /** Optional short text that fades in and out together with its image. */
   caption?: ReactNode;
 }
 
 interface Props {
   slides: Slide[];
-  /** Milliseconds each slide stays on screen. */
+  /** Milliseconds each image stays on screen. */
   interval?: number;
   className?: string;
   /** Tailwind classes for the dark layer that keeps overlaid text readable. */
   scrimClassName?: string;
   showCaption?: boolean;
-  /** `full` = arrows, pause and dots; `dots` = dots only (compact banners). */
-  controls?: 'full' | 'dots';
   label: string;
-  /** Show a clickable thumbnail strip of every image. */
-  thumbnails?: boolean;
-  /** Content rendered above the slides (e.g. a hero headline). */
+  /** Content rendered above the images (for example a hero headline). */
   children?: ReactNode;
 }
 
 /**
- * Cross-fading image slideshow. Advances automatically, pauses on hover/focus and via the pause button,
- * does not autoplay for visitors who prefer reduced motion, and is fully keyboard operable.
+ * Ambient image slideshow: the photos cross-fade on their own with a slow zoom, no clicking required.
+ * It stays on the first image for visitors who prefer reduced motion.
  */
-export function Slideshow({ slides, interval = 6000, className, scrimClassName = 'bg-ink/45', showCaption = true, controls = 'full', label, thumbnails = false, children }: Props) {
+export function Slideshow({ slides, interval = 5000, className, scrimClassName = 'bg-ink/45', showCaption = true, label, children }: Props) {
   const [index, setIndex] = useState(0);
-  const [playing, setPlaying] = useState(true);
-  const [hovered, setHovered] = useState(false);
+  const [reduced, setReduced] = useState(false);
   const count = slides.length;
 
   useEffect(() => {
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) setPlaying(false);
+    setReduced(window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   }, []);
 
-  const go = useCallback((n: number) => setIndex(((n % count) + count) % count), [count]);
-
   useEffect(() => {
-    if (!playing || hovered || count < 2) return;
-    const timer = window.setTimeout(() => setIndex((i) => (i + 1) % count), interval);
-    return () => window.clearTimeout(timer);
-  }, [index, playing, hovered, interval, count]);
+    if (reduced || count < 2) return;
+    const timer = window.setInterval(() => setIndex((i) => (i + 1) % count), interval);
+    return () => window.clearInterval(timer);
+  }, [reduced, interval, count]);
 
   return (
-    <div
-      role="region"
-      aria-roledescription="carousel"
-      aria-label={label}
-      className={cn('group/slides relative isolate overflow-hidden bg-ink', className)}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      onFocus={() => setHovered(true)}
-      onBlur={() => setHovered(false)}
-      onKeyDown={(e) => {
-        if (e.key === 'ArrowRight') go(index + 1);
-        if (e.key === 'ArrowLeft') go(index - 1);
-      }}
-    >
+    <div role="group" aria-label={label} className={cn('relative isolate overflow-hidden bg-ink', className)}>
       {slides.map((s, i) => (
-        <div key={s.src} role="group" aria-roledescription="slide" aria-label={`${i + 1} of ${count}`} aria-hidden={i !== index} className="absolute inset-0 -z-10">
+        <div key={s.src} aria-hidden className="absolute inset-0 -z-10">
           <img
             src={s.src}
-            alt={i === index ? s.alt : ''}
+            alt=""
             loading="eager"
             decoding="async"
-            className={cn('size-full object-cover transition-[opacity,transform] duration-1000 ease-out', i === index ? 'scale-100 opacity-100' : 'scale-105 opacity-0')}
+            className={cn('size-full object-cover [transition:opacity_1600ms_ease-in-out,transform_9000ms_ease-out]', i === index ? 'scale-100 opacity-100' : cn('opacity-0', !reduced && 'scale-110'))}
           />
         </div>
       ))}
@@ -80,37 +59,13 @@ export function Slideshow({ slides, interval = 6000, className, scrimClassName =
 
       {children}
 
-      {count > 1 && thumbnails && (
-        <div className="absolute inset-x-0 bottom-32 z-20 hidden justify-center gap-2 px-6 sm:flex">
+      {showCaption && (
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 p-4 text-white sm:p-6">
           {slides.map((s, i) => (
-            <button key={s.src} type="button" onClick={() => go(i)} aria-label={`Show image ${i + 1}: ${s.alt}`} aria-current={i === index} className={cn('h-14 w-20 overflow-hidden rounded-lg border-2 transition', i === index ? 'border-white opacity-100' : 'border-transparent opacity-60 hover:opacity-100')}>
-              <img src={s.src} alt="" className="size-full object-cover" />
-            </button>
-          ))}
-        </div>
-      )}
-
-      {count > 1 && (
-        <div className={cn('absolute inset-x-0 bottom-0 z-20 flex items-end justify-between gap-4 p-4 sm:p-6', controls === 'dots' && 'justify-center')}>
-          {showCaption && controls === 'full' && <div className="min-w-0 text-white" aria-live={playing ? 'off' : 'polite'}>{slides[index].caption}</div>}
-          <div className="flex shrink-0 items-center gap-2 rounded-full bg-ink/60 px-2 py-1.5 backdrop-blur">
-            {controls === 'full' && (
-              <button type="button" onClick={() => go(index - 1)} aria-label="Previous slide" className="rounded-full p-1.5 text-white hover:bg-white/15"><ChevronLeft className="size-4" /></button>
-            )}
-            <div className="flex items-center gap-1.5 px-1">
-              {slides.map((s, i) => (
-                <button key={s.src} type="button" onClick={() => go(i)} aria-label={`Show slide ${i + 1}`} aria-current={i === index} className="group/dot flex h-5 items-center">
-                  <span className={cn('block h-1.5 rounded-full transition-all', i === index ? 'w-6 bg-white' : 'w-1.5 bg-white/50 group-hover/dot:bg-white/80')} />
-                </button>
-              ))}
+            <div key={s.src} aria-hidden={i !== index} className={cn('transition-opacity duration-1000', i === index ? 'opacity-100' : 'absolute bottom-4 left-4 right-4 opacity-0 sm:bottom-6 sm:left-6')}>
+              {s.caption}
             </div>
-            {controls === 'full' && (
-              <>
-                <button type="button" onClick={() => go(index + 1)} aria-label="Next slide" className="rounded-full p-1.5 text-white hover:bg-white/15"><ChevronRight className="size-4" /></button>
-                <button type="button" onClick={() => setPlaying((p) => !p)} aria-label={playing ? 'Pause slideshow' : 'Play slideshow'} className="rounded-full p-1.5 text-white hover:bg-white/15">{playing ? <Pause className="size-4" /> : <Play className="size-4" />}</button>
-              </>
-            )}
-          </div>
+          ))}
         </div>
       )}
     </div>

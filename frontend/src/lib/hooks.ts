@@ -1,9 +1,15 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import type { FieldValues, Path, UseFormSetError } from 'react-hook-form';
 import { ApiError, errorMessage } from './api';
 import { useToast } from './toast';
+
+const noopSubscribe = () => () => {};
+/** False during server rendering and before React has attached to the page; true afterwards. */
+export function useHydrated(): boolean {
+  return useSyncExternalStore(noopSubscribe, () => true, () => false);
+}
 
 export function useDebounce<T>(value: T, delay = 350): T {
   const [debounced, setDebounced] = useState(value);

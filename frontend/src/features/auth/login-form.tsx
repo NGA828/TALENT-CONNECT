@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/form';
 import { Alert } from '@/components/ui/feedback';
 import { ApiError } from '@/lib/api';
-import { applyServerErrors } from '@/lib/hooks';
+import { applyServerErrors, useHydrated } from '@/lib/hooks';
 import { homeFor, useAuth } from './auth-context';
 import { AuthLayout } from './auth-layout';
 
@@ -23,6 +23,7 @@ type Values = z.infer<typeof schema>;
 
 export function LoginForm() {
   const { login, user, loading } = useAuth();
+  const hydrated = useHydrated();
   const router = useRouter();
   const params = useSearchParams();
   const next = params.get('next');
@@ -64,7 +65,7 @@ export function LoginForm() {
             {show ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
           </button>
         </div>
-        <Button type="submit" size="lg" className="w-full" loading={isSubmitting}>Sign in</Button>
+        <Button type="submit" size="lg" className="w-full" loading={isSubmitting} disabled={!hydrated}>Sign in</Button>
       </form>
       <p className="mt-6 text-center text-sm text-slate-600">
         New to Talent Connect? <Link href="/register" className="font-semibold text-accent-700 hover:underline">Create an account</Link>

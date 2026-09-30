@@ -47,7 +47,7 @@ export function AuthLayout({ title, subtitle, children, slides = LOGIN_SLIDES }:
   return (
     <div className="grid min-h-screen lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)]">
       <div className="flex flex-col bg-white">
-        <Slideshow className="h-44 lg:hidden" slides={toSlides(slides, false)} controls="dots" label="Talent Connect highlights" scrimClassName="bg-ink/35" interval={5000} />
+        <Slideshow className="h-44 lg:hidden" slides={toSlides(slides, false)} label="Talent Connect highlights" scrimClassName="bg-ink/35" interval={5000} />
         <div className="flex flex-1 flex-col px-4 py-8 sm:px-10">
           <Brand />
           <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center py-10">
@@ -57,7 +57,7 @@ export function AuthLayout({ title, subtitle, children, slides = LOGIN_SLIDES }:
           </div>
         </div>
       </div>
-      <Slideshow className="sticky top-0 hidden h-screen lg:block" slides={toSlides(slides, true)} label="Talent Connect highlights" scrimClassName="bg-gradient-to-t from-ink/70 via-transparent to-transparent" thumbnails interval={5000} />
+      <Slideshow className="sticky top-0 hidden h-screen lg:block" slides={toSlides(slides, true)} label="Talent Connect highlights" scrimClassName="bg-gradient-to-t from-ink/70 via-transparent to-transparent" interval={5000} />
     </div>
   );
 }
