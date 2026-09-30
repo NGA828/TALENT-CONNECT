@@ -11,7 +11,7 @@ The repository contains two separate applications:
 
 The frontend never touches the database. The browser only talks to the Next.js origin; Next proxies `/api/*` and `/uploads/*` to the NestJS server (see `frontend/next.config.ts`), so no backend URL, secret or CORS setup is exposed to client code.
 
-Related documents: [`API_DOCUMENTATION.md`](API_DOCUMENTATION.md) · [`DESIGN_RESEARCH.md`](DESIGN_RESEARCH.md)
+Related documents: [`API_DOCUMENTATION.md`](API_DOCUMENTATION.md) · [`DESIGN_RESEARCH.md`](DESIGN_RESEARCH.md) · [Postman collection & API test screenshots](postman/README.md)
 
 ---
 
@@ -145,6 +145,8 @@ cd backend && npm test          # 58 API tests against a throw-away SQLite datab
 cd backend && npm run lint && npm run build
 cd frontend && npm run lint && npm run typecheck && npm run build
 ```
+
+**Postman / newman:** [`postman/`](postman/README.md) contains a 108-request Postman collection (405 assertions) covering every module, and [screenshots of each request](postman/screenshots/README.md). Run it with `cd postman && npm install && npm test`.
 
 The backend suite (`node:test` + `expect`, real Nest app, real SQLite) covers both valid and invalid paths: registration validation and duplicate emails, login failures, suspended users, role and ownership violations (403), unknown resources (404), state conflicts (409), validation errors (422), upload type and size limits, event and contract state machines, licence → payment → admin verification, declined cards, messaging, notifications, AI, admin operations and the error envelope (no stack traces).
 
