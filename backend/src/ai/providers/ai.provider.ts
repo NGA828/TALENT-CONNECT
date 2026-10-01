@@ -26,6 +26,11 @@ export interface AiRequest {
 export abstract class AiProvider {
   abstract readonly name: string;
   abstract readonly live: boolean;
+  /**
+   * The model that answers right now. Usually the configured one, but a provider reports the
+   * model it fell back to after the vendor refused the configured id, so `/ai/status`, the
+   * assistant banner and the boot log never advertise a model that is not really in use.
+   */
   abstract readonly model: string;
   abstract complete(request: AiRequest): Promise<string>;
 }

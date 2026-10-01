@@ -21,11 +21,16 @@ export const AI_PROVIDER_LABELS: Record<AiProviderId, string> = {
  */
 export const AI_PROVIDER_PRESETS: Record<
   LiveAiProviderId,
-  { baseUrl: string; model: string; keys: string[]; baseUrlVars: string[]; modelVars: string[] }
+  { baseUrl: string; model: string; fallbackModel?: string; keys: string[]; baseUrlVars: string[]; modelVars: string[] }
 > = {
   groq: {
     baseUrl: 'https://api.groq.com/openai/v1',
-    model: 'llama-3.3-70b-versatile',
+    // Groq retired llama-3.3-70b-versatile and llama-3.1-8b-instant for Free/Developer keys on
+    // 16 August 2026 (they answer 404 "model does not exist"), so the default is Groq's own
+    // recommended replacement. `fallbackModel` is retried once when the configured model 404s,
+    // which keeps an outdated GROQ_MODEL/AI_MODEL in someone's .env from breaking the assistant.
+    model: 'openai/gpt-oss-120b',
+    fallbackModel: 'openai/gpt-oss-20b',
     keys: ['GROQ_API_KEY', 'AI_API_KEY'],
     baseUrlVars: ['GROQ_BASE_URL', 'AI_BASE_URL'],
     modelVars: ['GROQ_MODEL', 'AI_MODEL'],

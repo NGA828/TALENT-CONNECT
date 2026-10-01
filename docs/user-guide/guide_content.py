@@ -289,8 +289,9 @@ CONTENT = [
     ("h2", "6.2 Who is answering"),
     ("bullets", [
         "<b>Live (Groq)</b> — the assistant is connected to a real model served by Groq (open-weight models on fast LPU hardware, "
-        "<font face=\"Guide-Mono\">llama-3.3-70b-versatile</font> by default, at <font face=\"Guide-Mono\">api.groq.com</font>). "
-        "The banner on the page names the model in use.",
+        "<font face=\"Guide-Mono\">openai/gpt-oss-120b</font> by default, at <font face=\"Guide-Mono\">api.groq.com</font>). "
+        "The banner on the page names the model in use, and if the platform's configured model has been retired by Groq the banner "
+        "names the one that actually answered.",
         "<b>Offline assistant</b> — when the server has no API key configured, replies come from a built-in template writer. It still works from "
         "your profile data and answers platform questions, but it is less flexible; the page says so plainly instead of pretending otherwise.",
     ]),
