@@ -2,7 +2,8 @@
  * Quick check for the AI assistant configuration: `npm run ai:check`.
  *
  * It loads backend/.env, says which provider, endpoint, model and key variable would be used,
- * then makes one small live request so a freshly pasted key can be verified in seconds.
+ * checks that the vendor still serves that model, then makes one small live request so a freshly
+ * pasted key can be verified in seconds.
  */
 import 'dotenv/config';
 import { ConfigService } from '@nestjs/config';
@@ -12,6 +13,24 @@ import { GrokProvider } from '../src/ai/providers/grok.provider';
 import { OpenAiCompatibleProvider } from '../src/ai/providers/openai-compatible.provider';
 
 const config = { get: (key: string) => process.env[key] } as unknown as ConfigService;
+
+/**
+ * Asks the vendor which models this key may call (`GET /models`, part of the OpenAI-compatible
+ * contract). Vendors retire models without notice — Groq shut llama-3.3-70b-versatile down on
+ * 16 August 2026 — so a pinned model is verified *before* the test message instead of after a 404.
+ * Never fatal: an endpoint that does not list models simply skips the check.
+ */
+async function listVendorModels(baseUrl: string, apiKey: string): Promise<string[] | null> {
+  try {
+    const res = await fetch(`${baseUrl}/models`, { headers: { Authorization: `Bearer ${apiKey}` }, signal: AbortSignal.timeout(10_000) });
+    if (!res.ok) return null;
+    const json = (await res.json()) as { data?: { id?: string }[] };
+    const ids = (json.data ?? []).map((m) => String(m.id ?? '')).filter(Boolean);
+    return ids.length ? ids : null;
+  } catch {
+    return null;
+  }
+}
 
 async function main() {
   const connection = resolveAiConnection(config);
@@ -32,6 +51,17 @@ async function main() {
 
   const provider =
     connection.id === 'groq' ? new GroqProvider(config) : connection.id === 'grok' ? new GrokProvider(config) : new OpenAiCompatibleProvider(config);
+
+  const available = await listVendorModels(connection.baseUrl, connection.key);
+  if (available && !available.includes(provider.model)) {
+    console.log(`\n✖ ${AI_PROVIDER_LABELS[connection.id]} does not serve "${provider.model}" for this key.`);
+    console.log(`  Models it does serve: ${available.slice(0, 12).join(', ')}${available.length > 12 ? ', …' : ''}`);
+    const variable = connection.id === 'groq' ? 'GROQ_MODEL' : connection.id === 'grok' ? 'XAI_MODEL' : 'AI_MODEL';
+    console.log(`  Set ${variable} in backend/.env to one of them (or remove it to use this tool's default).`);
+    process.exitCode = 1;
+    return;
+  }
+
   console.log(`\nSending one test message to ${AI_PROVIDER_LABELS[connection.id]}…`);
 
   const reply = await provider.complete({

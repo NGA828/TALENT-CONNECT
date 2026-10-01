@@ -13,16 +13,24 @@ export class OpenAiCompatibleProvider extends AiProvider {
   private readonly logger = new Logger(OpenAiCompatibleProvider.name);
   readonly name = 'openai-compatible';
   readonly live = true;
-  readonly model: string;
+  private readonly configuredModel: string;
+  /** Model that answered last; differs from the configured one only after a vendor refused it. */
+  private answeredWith?: string;
   private readonly baseUrl: string;
   private readonly apiKey: string;
+  private readonly fallbackModel: string | undefined;
 
   constructor(config: ConfigService) {
     super();
     const connection = resolveAiConnection({ get: (key: string) => config.get(key) });
     this.baseUrl = connection.baseUrl || AI_PROVIDER_PRESETS['openai-compatible'].baseUrl;
-    this.model = connection.model || AI_PROVIDER_PRESETS['openai-compatible'].model;
+    this.configuredModel = connection.model || AI_PROVIDER_PRESETS['openai-compatible'].model;
     this.apiKey = connection.key;
+    this.fallbackModel = AI_PROVIDER_PRESETS['openai-compatible'].fallbackModel;
+  }
+
+  get model(): string {
+    return this.answeredWith ?? this.configuredModel;
   }
 
   complete(req: AiRequest): Promise<string> {
@@ -34,12 +42,16 @@ export class OpenAiCompatibleProvider extends AiProvider {
       logger: this.logger,
       baseUrl: this.baseUrl,
       apiKey: this.apiKey,
-      model: this.model,
+      model: this.configuredModel,
+      fallbackModel: this.fallbackModel,
       messages: req.messages,
       temperature: 0.7,
       maxTokens: 900,
       timeoutMs: 30_000,
       headers: attribution,
+      onModelUsed: (model) => {
+        this.answeredWith = model;
+      },
     });
   }
 }

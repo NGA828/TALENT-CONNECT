@@ -1,11 +1,14 @@
-import { INestApplication } from '@nestjs/common';
+import { INestApplication, Logger } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { expect } from 'expect';
 import { execSync } from 'node:child_process';
 import { rmSync } from 'node:fs';
 import { after as afterAll, before as beforeAll, describe, it } from 'node:test';
 import request from 'supertest';
-import { resolveAiConnection, resolveAiKey, selectAiProvider } from '../src/ai/providers/ai-config';
+import { createServer, Server } from 'node:http';
+import { AddressInfo } from 'node:net';
+import { AI_PROVIDER_PRESETS, resolveAiConnection, resolveAiKey, selectAiProvider } from '../src/ai/providers/ai-config';
+import { buildChatCompletionBody, completionBudget, isReasoningModel, requestChatCompletion, stripReasoning } from '../src/ai/providers/chat-completions';
 
 process.env.DATABASE_URL = 'file:./prisma/test.db';
 process.env.UPLOAD_DIR = './uploads-test';
@@ -732,7 +735,10 @@ describe('Talent Connect API (e2e)', () => {
       expect(groq.id).toBe('groq');
       expect(groq.live).toBe(true);
       expect(groq.baseUrl).toBe('https://api.groq.com/openai/v1');
-      expect(groq.model).toBe('llama-3.3-70b-versatile');
+      // Groq decommissioned llama-3.3-70b-versatile on 16 Aug 2026: the default must be a model
+      // a Free/Developer key can actually call, with a cheaper one to fall back on.
+      expect(groq.model).toBe('openai/gpt-oss-120b');
+      expect(AI_PROVIDER_PRESETS.groq.fallbackModel).toBe('openai/gpt-oss-20b');
       expect(groq.keySource).toBe('GROQ_API_KEY');
 
       // Keys never leak across vendors, and a missing key falls back to the offline assistant.
@@ -743,7 +749,7 @@ describe('Talent Connect API (e2e)', () => {
       expect(resolveAiConnection(read({ AI_PROVIDER: 'offline', GROQ_API_KEY: 'gsk_abc' })).id).toBe('offline');
       expect(resolveAiConnection(read({ AI_API_KEY: 'sk-1', GROQ_API_KEY: 'gsk-2' })).keySource).toBe('GROQ_API_KEY');
       expect(resolveAiConnection(read({ AI_API_KEY: 'sk-1' })).id).toBe('groq');
-      expect(resolveAiConnection(read({ GROQ_MODEL: 'openai/gpt-oss-120b' })).model).toBe('openai/gpt-oss-120b');
+      expect(resolveAiConnection(read({ GROQ_MODEL: 'qwen/qwen3.8-27b' })).model).toBe('qwen/qwen3.8-27b');
 
       // Key lookup ignores blank values and reports the variable it used.
       expect(resolveAiKey(read({ GROQ_API_KEY: '   ' }), 'groq')).toBeNull();
@@ -755,6 +761,97 @@ describe('Talent Connect API (e2e)', () => {
     it('never exposes API keys', async () => {
       const res = await get('/api/ai/status', alex);
       expect(JSON.stringify(res.body)).not.toMatch(/key|secret/i);
+    });
+    it('shapes the request for reasoning models without leaking their chain of thought', () => {
+      // gpt-oss (Groq's default), Grok 4 and Qwen3 think before answering; Llama 3.3 did not.
+      expect(isReasoningModel('openai/gpt-oss-120b')).toBe(true);
+      expect(isReasoningModel('openai/gpt-oss-20b')).toBe(true);
+      expect(isReasoningModel('grok-4.7')).toBe(true);
+      expect(isReasoningModel('qwen/qwen3.8-27b')).toBe(true);
+      expect(isReasoningModel('llama-3.3-70b-versatile')).toBe(false);
+      expect(isReasoningModel('openai/gpt-4o-mini')).toBe(false);
+
+      // Reasoning tokens come out of the same budget as the answer, so the cap is widened for them
+      // (and never past 8192); a plain model keeps exactly what AI_MAX_TOKENS asked for.
+      expect(completionBudget(1024, true)).toBe(4096);
+      expect(completionBudget(4096, true)).toBe(8192);
+      expect(completionBudget(1024, false)).toBe(1024);
+
+      const reasoning = buildChatCompletionBody('openai/gpt-oss-120b', [{ role: 'user', content: 'hi' }], 0.7, 1024, true);
+      expect(reasoning.max_tokens).toBe(4096);
+      expect(reasoning.reasoning_effort).toBe('low'); // drafting a bio does not need deep reasoning
+      expect(reasoning.reasoning_format).toBe('hidden'); // Groq inlines <think> tags otherwise
+
+      // `reasoning_format` is Groq-only, so xAI and generic endpoints never receive it.
+      expect(buildChatCompletionBody('grok-4.7', [], 0.7, 900).reasoning_format).toBeUndefined();
+      const plain = buildChatCompletionBody('llama-3.3-70b-versatile', [], 0.7, 1024, true);
+      expect(plain.max_tokens).toBe(1024);
+      expect(plain.reasoning_effort).toBeUndefined();
+
+      // A reasoning model's chain of thought must never reach a talent's screen, even if the
+      // endpoint ignores `reasoning_format` and inlines <think> blocks (Groq's raw default).
+      const thought = 'The model thinks out loud.';
+      expect(stripReasoning(`<think>${thought}</think> Here is your bio.`)).toBe('Here is your bio.');
+      expect(stripReasoning(`<think>${thought}`)).toBe('');
+      expect(stripReasoning('Answer only.')).toBe('Answer only.');
+    });
+    it('retries a retired model on the vendor default instead of failing the request', async () => {
+      // A stub vendor: 404 for the retired id, an answer for the current one.
+      const seen: { model: string; body: Record<string, unknown> }[] = [];
+      let server: Server | undefined;
+      const respond = (res: import('node:http').ServerResponse, status: number, payload: object) => {
+        res.writeHead(status, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(payload));
+      };
+      try {
+        server = createServer((req, res) => {
+          const chunks: Buffer[] = [];
+          req.on('data', (c: Buffer) => chunks.push(c));
+          req.on('end', () => {
+            const body = JSON.parse(Buffer.concat(chunks).toString()) as Record<string, unknown>;
+            seen.push({ model: String(body.model), body });
+            if (body.model === 'llama-3.3-70b-versatile') {
+              respond(res, 404, { error: { message: 'The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.' } });
+              return;
+            }
+            respond(res, 200, { choices: [{ message: { content: 'Drafted with gpt-oss.' }, finish_reason: 'stop' }] });
+          });
+        });
+        await new Promise<void>((resolve) => server!.listen(0, '127.0.0.1', resolve));
+        const baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`;
+        const used: string[] = [];
+        const call = (model: string, fallbackModel?: string) =>
+          requestChatCompletion({
+            label: 'Groq',
+            logger: new Logger('GroqStub'),
+            baseUrl,
+            apiKey: 'gsk_test',
+            model,
+            fallbackModel,
+            messages: [{ role: 'user', content: 'Improve my bio' }],
+            maxTokens: 1024,
+            timeoutMs: 5000,
+            hideReasoning: true,
+            onModelUsed: (m) => used.push(m),
+          });
+
+        // The 404 an operator saw in the logs becomes a working answer on the fallback model…
+        expect(await call('llama-3.3-70b-versatile', 'openai/gpt-oss-120b')).toBe('Drafted with gpt-oss.');
+        expect(seen.map((c) => c.model)).toEqual(['llama-3.3-70b-versatile', 'openai/gpt-oss-120b']);
+        expect(seen[1].body.reasoning_format).toBe('hidden');
+        // …and the provider learns which model really answered, so /ai/status stops advertising
+        // a retired one.
+        expect(used).toEqual(['openai/gpt-oss-120b']);
+
+        // A model the vendor does serve answers first time and reports no switch.
+        expect(await call('openai/gpt-oss-120b', 'openai/gpt-oss-20b')).toBe('Drafted with gpt-oss.');
+        expect(used).toEqual(['openai/gpt-oss-120b']);
+
+        // With no fallback configured a retired model stays an honest, actionable 503.
+        await expect(call('llama-3.3-70b-versatile')).rejects.toThrow(/not available to Groq/i);
+      } finally {
+        await new Promise<void>((resolve) => (server ? server.close(() => resolve()) : resolve()));
+      }
     });
   });
 
